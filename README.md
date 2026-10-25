@@ -42,6 +42,14 @@ npm run dev
 
 The results do not model boot time, cache warmup, total Go/Bun build walltime, EBS/Hyperdisk/D1 charges, egress, quota, spot reclamation or benchmark variance. They are for shortlisting hardware, not an empirical CI buildtime prediction.
 
+## Isolated PR preview database
+
+Cloudflare Workers Builds deploy PR previews against the separate D1 database
+`cloud-ci-rank-preview` (WEUR). The `previews.d1_databases` binding in
+`wrangler.jsonc` points exclusively to that database; previews must never
+read or write the production `cloud-ci-rank` D1 binding. The preview database
+is intentionally empty until migration tests initialize it separately.
+
 ## SuperSQLite raw Keeper snapshots (additive rollout)
 
 The latest pipeline keeps the **original Keeper `/servers` JSON** as typed
