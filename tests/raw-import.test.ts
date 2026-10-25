@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
 import { fetchKeeperRawAll, keeperRows, offersFromKeeperRaw, KEEPER_VENDORS, type KeeperRawDocument } from '../src/keeper';
-import { digestRaw, rawChunks } from '../scripts/raw-utils';
+import { digestOffers, digestRaw, rawChunks } from '../scripts/raw-utils';
 
 const vendorIds: Record<string,string> = {
   AWS:'aws',GCP:'gcp',AZURE:'azure',HCLOUD:'hcloud',OVH:'ovh',
@@ -50,6 +50,11 @@ test('Keeper raw normalization retains source JSON and rankings exactly', () => 
     raw: Object.fromEntries(Object.entries(d.raw).reverse()) as unknown as KeeperRawDocument['raw']
   }))));
   assert.notEqual(digestRaw(documents), digestRaw([documents[0]]));
+  const reference=offersFromKeeperRaw(documents).filter(x=>x.provider==='AWS');
+  const changed=reference.map(x=>({...x,regionId:'eu-central-2'}));
+  assert.notEqual(digestOffers(reference),digestOffers(changed));
+  assert.notEqual(digestOffers(reference),digestOffers(reference.map(x=>({...x,countryCode:'CH'}))));
+
   const groups=rawChunks('01KANABCDABCDFACED',documents.map(d=>({...d,kind:'raw' as const})));
   assert.equal(groups.reduce((sum,b)=>sum+b.docs.length,0),documents.length);
   assert.deepEqual(groups.map(x=>x.offset),[0]);
