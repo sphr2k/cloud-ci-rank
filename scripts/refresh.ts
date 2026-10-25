@@ -26,7 +26,7 @@ async function post<T>(path:string,data:unknown):Promise<T>{
 export function digestOffers(offers:Offer[]):string{
  const normalized=offers.map(x=>[
   x.instance,x.family,x.arch,x.processor,x.vcpu,x.ram,x.model,
-  x.hour_usd,x.region,x.geo,x.benchAll,x.benchSingle
+  x.hour_usd,x.region,x.regionId,x.countryCode,x.geo,x.benchAll,x.benchSingle
  ]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
