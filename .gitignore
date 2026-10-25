@@ -1,8 +1,9 @@
-__pycache__/
-*.py[cod]
-.DS_Store
+node_modules/
+dist/
+.wrangler/
 .env
-.env.*
-.venv/
-.pytest_cache/
-.coverage
+.dev.vars*
+*.log
+*.tsbuildinfo
+src/assets.generated.ts
+.tmp-worker-transfer.txt

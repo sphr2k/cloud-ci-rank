@@ -1,0 +1,26 @@
+name: Refresh cloud prices
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloud-ci-rank-prices
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run check
+      - run: npm run prices:refresh
+        env:
+          CLOUD_CI_RANK_URL: ${{ vars.CLOUD_CI_RANK_URL }}
+          CLOUD_CI_IMPORT_TOKEN: ${{ secrets.CLOUD_CI_IMPORT_TOKEN }}

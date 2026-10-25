@@ -1,0 +1,27 @@
+{
+  "name": "cloud-ci-rank",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "npm run build && tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "prices:refresh": "node --import tsx scripts/refresh.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "*",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^1.0.0-rc.5",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "drizzle-orm": "^1.0.0-rc.5",
+    "zod": "^4.6.7"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cloud-ci-rank",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-25",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloud-ci-rank",
+      "database_id": "f7d6e5f8-ce82-4aac-acdc-a12317abaa29",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

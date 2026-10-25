@@ -1,44 +1,40 @@
-# Cloud CI Cost Leaderboard (quick prototype)
+# Cloud CI Price Leaderboard
 
-A **single price ranking**, not a general-purpose cloud comparison tool. Two geographic switches: **Europe** and **USA** (both initially selected), plus **Max. vCPU** (defaults to 16; selectable 8–64). No Asia. The selected regions are used to choose the cheapest regional offer for every instance family and purchase model; the ordering and prices change immediately in the HTML UI.
+Minimal **TypeScript SPA + Cloudflare Worker + D1** for comparing AWS/GCP/OCI VM prices per `1 advertised vCPU + 2 GiB RAM` hour. [Live dashboard](https://cloud-ci-rank.janwer.workers.dev/).
 
-## Open
+Europe and USA are enabled by default (Asia excluded), max vCPUs defaults to **16**. Rankings include x86-64, ARM64, Spot and On-Demand, choose the cheapest region per instance family and size, and display OCI A4 Preemptible with a clearly marked modeled 50% discount. The score measures **capacity price, not CPU performance**.
 
-Open `index.html` in a browser. No server required. The page embeds a real **2026-10-25 API snapshot**, not the older manual seed. The offline preview is deliberately limited to the **35 cheapest families per provider + geographical region + tariff**, selected before applying the vCPU filter; therefore it is not exhaustive. A full API refresh is required for complete filtered rankings. OCI comes from the official Oracle SKU list and is displayed as **global, unverified availability**.
+## Architecture
 
-Run with Python 3 standard library (no pip dependencies):
+- **Public Worker** (`src/worker.ts`): serves HTML/SPA and `/api/prices` from Cloudflare D1. On Workers Free there is a 10ms CPU cap, so it does **not** parse the 319MB upstream AWS JSON.
+- **GitHub Actions** (`.github/workflows/prices.yml`): runs TypeScript importer every six hours; can also be triggered manually. It streams Vantage AWS/GCP feeds (`src/feeds.ts`) and fetches Oracle PAYG SKUs.
+- **Change detection**: AWS sends `If-None-Match` using the stored ETag; GCP lacks an ETag, so the small (~6MB) feed is downloaded and the normalized offers hashed. OCI SKU responses are likewise normalized and hashed. If the content digest is unchanged, **no D1 offer rows are rewritten**.
+- **Drizzle + Zod**: `src/db/schema.ts` is the source of truth. Generated `Instance` Zod schema validates normalized offers before D1 insertion. Migrations in `migrations/` are generated from the Drizzle schema (`drizzle/` retains generator snapshots).
+- **Atomic publication**: uploader stages batches of 10 offers, in D1 inserts of 5 rows (SQLite bound-variable limit), then commits only when the full expected row count is present. Until commit, readers see the previous complete snapshot.
+- **Snapshot**: `data/region_snapshot.json` is an explicitly dated, reduced fallback for uninitialized D1. It is **not** treated as current live prices.
+
+### Running
 
 ```sh
-python3 rank.py           # refresh from the full Vantage AWS/GCP feeds + OCI SKU API
-python3 rank.py --offline # rebuild using the included API snapshot (no network)
-python3 -m unittest discover -s tests -v
+npm ci
+npm run check
+npm test
+npm run dev
 ```
 
-`rank.py` regenerates `index.html` and a `ranking.csv` matching the default *Europe + USA, max. 16 vCPU* view. The maximum-vCPU selector applies to the VM size, not the sum of cores across CI jobs. Clicking **CSV exportieren** downloads the current selection instead. `ui_template.html` contains the HTML, CSS, and JavaScript. The HTML itself includes all pricing data so that regional switching works offline.
+The Cloudflare D1 database is `cloud-ci-rank` (ID configured in `wrangler.jsonc`). The live worker is `cloud-ci-rank.janwer.workers.dev`.
 
-### Sources
+### Refresh
 
-- AWS Vantage: https://instances.vantage.sh/instances.json (~320 MB feed), `linux.spot_avg` (seven-day average), `linux.ondemand`, cores, RAM, processor, architecture, region and `pct_interrupt` where available.
-- GCP Vantage: https://instances.vantage.sh/gcp/instances.json (~6 MB), `linux.spot` and `linux.ondemand`, cores, RAM, region. Architecture is inferred from recognized instance families because Vantage does not explicitly include this property for GCP.
-- OCI public SKU API: https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/, A2/A4/E4/E5/E6. Spot is modeled at 50% of compute + memory PAYG where included; **this is not a verified Spot quote or availability check**. OCI A1 intentionally excluded.
+GitHub Actions uses repository variable `CLOUD_CI_RANK_URL` and secret `CLOUD_CI_IMPORT_TOKEN`. The same secret is a Worker `IMPORT_TOKEN` secret binding. To run manually:
 
-The dedicated bearer-token Vantage Instances API was tested independently, but the public bulk feeds do not require a token. **No API key is embedded or saved.** The script streams the large AWS feed with bounded memory.
-
-### Regional behavior
-
-- AWS Europe: regular `eu-...` regions (not isolated regions); USA: commercial `us-...` regions (excluding GovCloud and isolated regions).
-- GCP Europe: `europe-...`; USA: `us-...`.
-- OCI: **global list prices**, shown for either selection without falsely claiming regional availability. Oracle pricing API does not provide the regional shape inventory.
-- Data acquisition retains the lowest-price offer per `(provider, family, purchase model, architecture, geography, vCPU, RAM)`. In the browser, the maximum-vCPU criterion is applied **before** selecting the cheapest eligible size per family/model and the cheapest eligible region. This prevents large VM variants from hiding smaller eligible variants.
-- Only general-purpose or compute-optimized Linux CPU instances with 8–64 vCPUs and at least 16 GiB RAM are considered. GPUs, AWS burstable families, AWS metal, GCP shared-vCPU and restricted regions are excluded.
-
-### Ranking metric
-
-```text
-capacity_units = min(advertised_vCPU, RAM_GiB / 2)
-USD_per_unit_hour = VM_hourly_price / capacity_units
+```sh
+CLOUD_CI_RANK_URL=https://cloud-ci-rank.janwer.workers.dev \
+CLOUD_CI_IMPORT_TOKEN=... npm run prices:refresh
 ```
 
-This is a **capacity-price** ranking, **not CPU benchmark normalization**. AMD/Intel SMT vCPU and ARM cores are not treated as equivalent performance. Storage (EBS, Hyperdisk, OCI volumes), quotas, Spot interruption, availability, network/egress, cold boot, and per-job execution performance are not part of the score.
+`POST /api/import/begin`, `/api/import/chunk`, `/api/import/commit` require `Authorization: Bearer <IMPORT_TOKEN>`; the public API never exposes the token. `GET /api/sources` exposes only the stored source ETag, normalized digest, and timestamps. D1 state is per-provider and independent across refresh failures.
 
-No live spot capacity verification is performed, and some regional list/Spot prices may not be actionable. The browser shows data snapshot date and any provider-refresh failures.
+### Limitations
+
+AWS Vantage Linux Spot is a 7-day average, GCP Spot is published regional pricing; neither confirms available Spot capacity. OCI A4/E4/E5/E6 Preemptible is modeled at 50% off public CPU + RAM PAYG SKUs and **does not confirm availability in a selected region**. OCI A1 is intentionally omitted; A2 has no modeled Preemptible. GPU, shared-CPU, bare metal, burstable AWS and non-EU/non-US regions are excluded from the discovery input. Cloud compute/VM-start cost, disk, egress, quotas, CPU-generation benchmarking, and actual build speed are not included in the score.
