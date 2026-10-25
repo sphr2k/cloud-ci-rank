@@ -58,8 +58,13 @@ async function publishRaw(grouped: Record<string,KeeperRawDocument[]>, old: Sour
       provider: vendor, digest, expectedRows: stored.length
     });
     if (begin.status === 'unchanged') continue;
-    for (const chunk of rawChunks(begin.batchId, stored)) {
-      await post('/api/raw-import/chunk', {batchId: begin.batchId, ...chunk});
+    // Disjoint offset ranges remain idempotent; bounded parallel HTTP uploads
+    // avoid running past the scheduled workflow deadline on full Keeper data.
+    const chunks = rawChunks(begin.batchId, stored);
+    for (let i = 0; i < chunks.length; i += 8) {
+      await Promise.all(chunks.slice(i, i + 8).map(chunk =>
+        post('/api/raw-import/chunk', {batchId: begin.batchId, ...chunk})
+      ));
     }
     const committed = await post<{status:string;provider:string;count:number;previousBatchId:string|null}>('/api/raw-import/commit', {
       batchId: begin.batchId
