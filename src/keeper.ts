@@ -5,17 +5,19 @@ export const KEEPER_VENDORS=['AWS','GCP','AZURE','HCLOUD','OVH','UPCLOUD','VULTR
 export type KeeperVendor=typeof KEEPER_VENDORS[number];
 export const COUNTRIES=['AT','BE','CH','DE','DK','ES','FI','FR','GB','IE','IT','NL','NO','PL','SE','US'] as const;
 const vendorIds:Record<KeeperVendor,string>={AWS:'aws',GCP:'gcp',AZURE:'azure',HCLOUD:'hcloud',OVH:'ovh',UPCLOUD:'upcloud',VULTR:'vultr',ALICLOUD:'alicloud'};
-interface KeeperServer {
+export interface KeeperServer {
+ [key:string]:unknown;
  vendor_id:string;server_id:string;name:string;display_name?:string;family?:string|null;series?:string|null;
  vcpus:number;memory_amount:number;cpu_architecture?:string|null;cpu_manufacturer?:string|null;
  cpu_family?:string|null;cpu_model?:string|null;accelerator_count?:number;
  selected_benchmark_score?:number|null;min_price_spot?:number|null;min_price_ondemand?:number|null;
  observed_at?:string;status?:string;
 }
+const displayNames=new Intl.DisplayNames(['de'],{type:'region'});
 export function keeperRows(data:unknown,country:string,single:Map<string,number>):Offer[]{
  if(!Array.isArray(data))throw new Error('Keeper /servers must return an array');
  const geo=country==='US'?'us':'eu';
- const label=new Intl.DisplayNames(['de'],{type:'region'}).of(country)||country;
+ const label=displayNames.of(country)||country;
  const result:Offer[]=[];
  for(const candidate of data){
   if(!candidate||typeof candidate!=='object')continue;
@@ -59,7 +61,14 @@ async function keeperGet(fetcher:typeof fetch,url:string):Promise<unknown>{
  }
  throw new Error('Keeper API retry limit reached');
 }
-export async function fetchKeeperAll(fetcher:typeof fetch=fetch):Promise<Record<KeeperVendor,Offer[]>>{
+/** The raw Keeper server document is preserved verbatim; only country and
+ * single-core benchmark (fetched from a distinct endpoint) are attached. */
+export interface KeeperRawDocument { country: string; raw: KeeperServer; single: number | null }
+export function keeperVendor(raw: Pick<KeeperServer, 'vendor_id'>): KeeperVendor | undefined {
+ return KEEPER_VENDORS.find(v=>vendorIds[v]===raw.vendor_id);
+}
+
+export async function fetchKeeperRawAll(fetcher: typeof fetch = fetch): Promise<Record<KeeperVendor,KeeperRawDocument[]>> {
  const singleUrl=new URL('/servers',KEEPER_API);
  for(const [key,value] of Object.entries({vcpus_min:'8',vcpus_max:'64',memory_min:'16',gpu_max:'0',benchmark_id:'stress_ng:best1',limit:'-1'}))
   singleUrl.searchParams.set(key,value);
@@ -70,20 +79,46 @@ export async function fetchKeeperAll(fetcher:typeof fetch=fetch):Promise<Record<
   const x=r as KeeperServer,s=Number(x.selected_benchmark_score);
   if(Number.isFinite(s)&&s>0)single.set(x.vendor_id+':'+x.server_id,s);
  }
- const all:Offer[]=[];
- // ~17 requests × 3 credits; well under the public 300 credits/min limit.
+ const byVendor=Object.fromEntries(KEEPER_VENDORS.map(v=>[v,[]])) as unknown as Record<KeeperVendor,KeeperRawDocument[]>;
  for(let i=0;i<COUNTRIES.length;i+=2){
   const batch=await Promise.all(COUNTRIES.slice(i,i+2).map(async country=>{
    const url=new URL('/servers',KEEPER_API);
    for(const [key,value] of Object.entries({countries:country,vcpus_min:'8',vcpus_max:'64',memory_min:'16',gpu_max:'0',benchmark_id:'stress_ng:bestn',best_price_allocation:'ANY',limit:'-1'}))
     url.searchParams.set(key,value);
    const rows=await keeperGet(fetcher,url.toString());
-   return keeperRows(rows,country,single);
+   if(!Array.isArray(rows))throw new Error('Keeper '+country+' response must be an array');
+   const selected: {vendor:KeeperVendor;doc:KeeperRawDocument}[]=[];
+   for(const item of rows){
+    if(!item||typeof item!=='object')continue;
+    const raw=item as KeeperServer;
+    const vendor=keeperVendor(raw);
+    if(!vendor||!keeperRows([raw],country,single).length)continue;
+    selected.push({vendor,doc:{country,raw,single:single.get(raw.vendor_id+':'+raw.server_id)??null}});
+   }
+   return selected;
   }));
-  for(const rows of batch)all.push(...rows);
+  for(const rows of batch)for(const {vendor,doc} of rows)byVendor[vendor].push(doc);
  }
- const compact=compactCandidates(bestByGeo(all));
- const byVendor=Object.fromEntries(KEEPER_VENDORS.map(p=>[p,compact.filter(x=>x.provider===p)])) as Record<KeeperVendor,Offer[]>;
  for(const [vendor,rows] of Object.entries(byVendor))if(!rows.length)throw new Error('Keeper missing vendor '+vendor);
  return byVendor;
+}
+
+/** Derived view from persisted raw documents; source fields are not rewritten. */
+export function offersFromKeeperRaw(documents:Iterable<KeeperRawDocument>):Offer[] {
+ const rows:Offer[]=[];
+ for(const doc of documents){
+  const key=doc.raw.vendor_id+':'+doc.raw.server_id;
+  const singles=new Map<string,number>();
+  if(doc.single!==null)singles.set(key,doc.single);
+  rows.push(...keeperRows([doc.raw],doc.country,singles));
+ }
+ return compactCandidates(bestByGeo(rows));
+}
+
+// Backwards-compatible public helper used by existing consumers.
+export async function fetchKeeperAll(fetcher: typeof fetch = fetch):Promise<Record<KeeperVendor,Offer[]>> {
+ const data=await fetchKeeperRawAll(fetcher);
+ const result={} as Record<KeeperVendor,Offer[]>;
+ for(const vendor of KEEPER_VENDORS)result[vendor]=offersFromKeeperRaw(data[vendor]);
+ return result;
 }

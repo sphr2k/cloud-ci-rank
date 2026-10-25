@@ -5,8 +5,9 @@ import { eq, inArray, count } from 'drizzle-orm';
 import { z } from 'zod';
 import { instances, sources, imports, Instance } from './db/schema';
 import type { Offer, DataEnvelope } from './pricing';
+import { rawSources, rawStatus, rawPrices, rawImport } from './raw-import';
 
-interface Env { DB: D1Database; IMPORT_TOKEN?: string }
+interface Env { DB: D1Database; IMPORT_TOKEN?: string; READ_KEEPER_SNAPSHOTS?: string }
 const HEADER={'content-type':'application/json; charset=utf-8','cache-control':'public,max-age=120,s-maxage=300'};
 const providerSchema=z.enum(['AWS','GCP','AZURE','HCLOUD','OVH','UPCLOUD','VULTR','ALICLOUD']);
 const beginSchema=z.object({
@@ -81,7 +82,29 @@ async function prices(env:Env,request:Request):Promise<Response>{
 export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const path=new URL(request.url).pathname;
-    if(path==='/api/prices'&&request.method==='GET')return prices(env,request);
+    if(path==='/api/prices'&&request.method==='GET'){
+      if(env.READ_KEEPER_SNAPSHOTS==='1'){
+        try {
+          const raw = await rawPrices(env.DB, request);
+          if(raw) return raw;
+        } catch(error) { console.error('Raw Keeper read failed, preserving legacy prices:', error); }
+      }
+      return prices(env,request);
+    }
+    if(path==='/api/raw/sources'&&request.method==='GET')return rawSources(env.DB);
+    if(path==='/api/raw/status'&&request.method==='GET')return rawStatus(env.DB);
+    if(path==='/api/raw/prices'&&request.method==='GET'){
+      if(!env.IMPORT_TOKEN || request.headers.get('Authorization')!=='Bearer '+env.IMPORT_TOKEN)
+        return new Response('Unauthorized',{status:401});
+      try { return await rawPrices(env.DB, request) ?? Response.json({error:'Raw snapshots not complete'}, {status:409}); }
+      catch(error) { console.error(error); return Response.json({error:'Raw snapshot read error'}, {status:503}); }
+    }
+    if(path.startsWith('/api/raw-import/')&&request.method==='POST'){
+      if(!env.IMPORT_TOKEN || request.headers.get('Authorization')!=='Bearer '+env.IMPORT_TOKEN)
+        return new Response('Unauthorized',{status:401});
+      try { return await rawImport(env.DB,path,request); }
+      catch(error){ console.error(error); return Response.json({error:'Raw import internal error'}, {status:500}); }
+    }
     if(path==='/api/sources'&&request.method==='GET'){
       const state=await drizzle(env.DB).select().from(sources).all();
       return Response.json(Object.fromEntries(state.map(x=>[x.provider,{etag:x.etag,digest:x.contentDigest,checkedAt:x.checkedAt,changedAt:x.changedAt}])),{headers:HEADER});
