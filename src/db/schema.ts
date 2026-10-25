@@ -23,6 +23,8 @@ export const instances = sqliteTable('instances', {
   model: text('model', { enum: ['Spot', 'On-Demand'] }).notNull(),
   hourUsd: real('hour_usd').notNull(),
   region: text('region').notNull(),
+  regionId: text('region_id'),
+  countryCode: text('country_code'),
   geo: text('geo', { enum: ['eu', 'us', 'global'] }).notNull(),
   source: text('source').notNull(),
   evidence: text('evidence').notNull(),

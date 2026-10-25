@@ -21,11 +21,11 @@ A missing benchmark is **not assumed to be zero**; unmeasured candidates rank af
 
 - Providers: AWS, GCP, Azure, Hetzner Cloud, OVH, UpCloud, Vultr, Alibaba Cloud. OCI is **not supported by Keeper and deliberately excluded**.
 - Europe and USA only, max. 16 vCPU by default (8–64 selectable), x86/ARM, Spot/On-Demand.
-- [Keeper `/servers`](https://keeper.sparecores.net/docs): 1 request for global single-core results, 1 per country for combined provider-specific prices and multi-core scores. Europe has 15 supported country codes plus US. ~17 requests × 3 credits = 51 credits per refresh, below Keeper's 300 credits/min default. In response to 429/503, retries honor `Retry-After` with bounded backoff.
-- Only **country-minimum** hourly prices are known from this endpoint, not the exact AZ and not actual purchasable Spot capacity. EU/US markets must not be conflated. Country availability and latency still require verification before deploying runners.
+- [Keeper `/servers`](https://keeper.sparecores.net/docs): 1 request for global single-core results, 1 per country for combined provider-specific prices and multi-core scores. Europe has 15 supported country codes plus US. ~29 /servers requests × 3 credits plus one region-catalog request = approximately 88 credits per refresh, below Keeper's 300 credits/min default. In response to 429/503, retries honor `Retry-After` with bounded backoff.
+- AWS prices are collected **per actual AWS region** (using the Keeper regions filter), while other providers retain **country-minimum** prices. Neither reports exact availability-zone capacity. EU/US markets must not be conflated. Country availability and latency still require verification before deploying runners.
 - Keeper source records are public, under **CC BY-SA 4.0**. Data attribution: [Spare Cores](https://sparecores.com/). API use is subject to [terms/fair use](https://sparecores.com/legal/terms-of-service).
 - GitHub Actions refreshes every 6 hours via the same TypeScript parser (`src/keeper.ts`); Cloudflare Workers Free does no expensive upstream parsing. No API key required. Each provider's normalized price and benchmark records are hashed, and unchanged records cause **no D1 offers writes**.
-- D1 is deliberately retained as the public caching/serving layer. The Worker uses **Drizzle ORM + Drizzle-generated Zod schemas** (`src/db/schema.ts`), with atomic version switch after validating all uploaded rows. Data reduction preserves winning candidates across all six max-vCPU choices and both ranking metrics.
+- D1 is deliberately retained as the public caching/serving layer. The Worker uses **Drizzle ORM + Drizzle-generated Zod schemas** (`src/db/schema.ts`), with atomic version switch after validating all uploaded rows. Data reduction preserves each country's and AWS region's winning candidates across all six max-vCPU choices and both ranking metrics; this avoids incorrect cross-region comparisons.
 
 ## Develop
 
@@ -41,3 +41,19 @@ npm run dev
 ## Limitations
 
 The results do not model boot time, cache warmup, total Go/Bun build walltime, EBS/Hyperdisk/D1 charges, egress, quota, spot reclamation or benchmark variance. They are for shortlisting hardware, not an empirical CI buildtime prediction.
+
+## Location filter and Buildkite AMI preset
+
+The location dropdown supports:
+- All regions (default)
+- Country minima across all eight providers
+- Exact AWS regions, with region-specific Spot and On-Demand prices
+- AWS · Buildkite-AMI-Regionen, an AWS-only preset for regions in the official Elastic CI Stack for AWS v1.4.0 AMI map
+
+Buildkite native AMI regions in the supported app markets:
+- EU: eu-central-1, eu-north-1, eu-south-1, eu-west-1, eu-west-2, eu-west-3
+- US: us-east-1, us-east-2, us-west-1, us-west-2
+
+Spain (eu-south-2) and Zurich (eu-central-2) have accurate regional prices and appear in the individual region selector, but **not** in the upstream v1.4.0 native AMI preset. A mapping is not proof of AMI accessibility in the AWS account or available Spot capacity.
+
+Migration 0005_region_filter.sql adds region_id and country_code. Apply this before importing the new offers; historical AWS country minima will be replaced in the first completed refresh.

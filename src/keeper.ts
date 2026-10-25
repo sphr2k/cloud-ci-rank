@@ -12,7 +12,8 @@ interface KeeperServer {
  selected_benchmark_score?:number|null;min_price_spot?:number|null;min_price_ondemand?:number|null;
  observed_at?:string;status?:string;
 }
-export function keeperRows(data:unknown,country:string,single:Map<string,number>):Offer[]{
+export interface KeeperRegion { regionId:string; name:string; country:string }
+export function keeperRows(data:unknown,country:string,single:Map<string,number>,awsRegion?:KeeperRegion):Offer[]{
  if(!Array.isArray(data))throw new Error('Keeper /servers must return an array');
  const geo=country==='US'?'us':'eu';
  const label=new Intl.DisplayNames(['de'],{type:'region'}).of(country)||country;
@@ -36,8 +37,9 @@ export function keeperRows(data:unknown,country:string,single:Map<string,number>
    const hourly=Number(value);
    if(!Number.isFinite(hourly)||hourly<=0)continue;
    result.push({provider,instance,family,arch,processor,vcpu,ram,model,hour_usd:hourly,geo,
-     region:label+' ('+country+')',source:KEEPER_API+'/servers',
-     evidence:'Spare Cores country-minimum '+model+' price (no capacity guarantee)',
+     region:awsRegion?awsRegion.name+' ('+awsRegion.regionId+')':label+' ('+country+')',
+     regionId:awsRegion?.regionId??null,countryCode:country,source:KEEPER_API+'/servers',
+     evidence:'Spare Cores '+(awsRegion?'AWS region-minimum':'country-minimum')+' '+model+' price (no capacity guarantee)',
      asof:String(x.observed_at||'').slice(0,10),data_class:'keeper',interruption:null,
      benchAll:allcore,benchSingle:singlecore});
   }
@@ -71,7 +73,16 @@ export async function fetchKeeperAll(fetcher:typeof fetch=fetch):Promise<Record<
   if(Number.isFinite(s)&&s>0)single.set(x.vendor_id+':'+x.server_id,s);
  }
  const all:Offer[]=[];
- // ~17 requests × 3 credits; well under the public 300 credits/min limit.
+ // Country-minimum prices are retained for vendors without exact region data.
+ // Public Keeper permits one AWS region per /servers query. Extra ~50 credits
+ // remain below the documented 300 credits/minute fair-use budget.
+ const catalog=await keeperGet(fetcher,KEEPER_API+'/table/region');
+ if(!Array.isArray(catalog))throw new Error('Keeper region catalog must be an array');
+ const awsRegions:KeeperRegion[]=catalog.filter((x):x is Record<string,unknown>=>!!x&&typeof x==='object')
+   .filter(x=>x.vendor_id==='aws'&&x.status==='active'&&COUNTRIES.includes(x.country_id as typeof COUNTRIES[number]))
+   .map(x=>({regionId:String(x.region_id),name:String(x.display_name||x.name||x.region_id),country:String(x.country_id)}))
+   .sort((a,b)=>a.regionId.localeCompare(b.regionId));
+ if(!awsRegions.length)throw new Error('Keeper returned no active AWS regions');
  for(let i=0;i<COUNTRIES.length;i+=2){
   const batch=await Promise.all(COUNTRIES.slice(i,i+2).map(async country=>{
    const url=new URL('/servers',KEEPER_API);
@@ -79,6 +90,18 @@ export async function fetchKeeperAll(fetcher:typeof fetch=fetch):Promise<Record<
     url.searchParams.set(key,value);
    const rows=await keeperGet(fetcher,url.toString());
    return keeperRows(rows,country,single);
+  }));
+  for(const rows of batch)all.push(...rows.filter(x=>x.provider!=='AWS'));
+ }
+ // AWS quotes are now exact region-scoped minimum prices, not country-wide.
+ for(let i=0;i<awsRegions.length;i+=2){
+  const batch=await Promise.all(awsRegions.slice(i,i+2).map(async region=>{
+   const url=new URL('/servers',KEEPER_API);
+   for(const [key,value] of Object.entries({vendor:'aws',regions:region.regionId,vcpus_min:'8',vcpus_max:'64',memory_min:'16',gpu_max:'0',benchmark_id:'stress_ng:bestn',best_price_allocation:'ANY',limit:'-1'}))
+    url.searchParams.set(key,value);
+   const rows=await keeperGet(fetcher,url.toString());
+   if(!Array.isArray(rows))throw new Error('Keeper AWS '+region.regionId+' response must be an array');
+   return keeperRows(rows,region.country,single,region);
   }));
   for(const rows of batch)all.push(...rows);
  }
