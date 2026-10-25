@@ -24,3 +24,4 @@ jobs:
         env:
           CLOUD_CI_RANK_URL: ${{ vars.CLOUD_CI_RANK_URL }}
           CLOUD_CI_IMPORT_TOKEN: ${{ secrets.CLOUD_CI_IMPORT_TOKEN }}
+          CLOUD_CI_LEGACY_REFRESH: ${{ vars.CLOUD_CI_LEGACY_REFRESH }}

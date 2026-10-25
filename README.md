@@ -42,6 +42,74 @@ npm run dev
 
 The results do not model boot time, cache warmup, total Go/Bun build walltime, EBS/Hyperdisk/D1 charges, egress, quota, spot reclamation or benchmark variance. They are for shortlisting hardware, not an empirical CI buildtime prediction.
 
+## SuperSQLite raw Keeper snapshots (additive rollout)
+
+The latest pipeline keeps the **original Keeper `/servers` JSON** as typed
+SuperSQLite documents in Cloudflare D1. The only attached fields are the
+country queried and single-core score from the separate Keeper benchmark
+endpoint. Unknown source fields, nested CPU metadata, and future attributes
+are preserved, not flattened into a relational `instances` schema.
+
+Each snapshot contains **two kinds of JSON documents** within one atomic
+batch: `kind: 'raw'` for the source record, and `kind: 'offer'` for a compact
+materialized ranking offer computed by the existing TypeScript normalizer.
+An expression index over `(batchId, kind)` makes public requests read only the
+small materialized offers. The full source remains available for audits and
+reprocessing; no country-by-country raw scan occurs on public requests.
+
+### Deployment and cutover
+
+1. `npm ci && npm run check && npm test` – compile, typecheck, and exercise
+   genuine workerd/D1 integration tests. Check this on GitHub CI before deploy.
+2. Apply **additive migration 0006** to the D1 binding *before* deploying the
+   Worker. Use `npx wrangler d1 migrations apply cloud-ci-rank --remote` (with
+   authorized Cloudflare credentials). **Do not drop the legacy tables.**
+3. Deploy with the existing Worker configuration (`npm run deploy`).
+   `READ_KEEPER_SNAPSHOTS` is deliberately unset. Existing `/api/prices`
+   therefore continues to serve Drizzle's `instances` table.
+4. Trigger the existing **Refresh cloud prices** workflow. It will populate
+   raw and materialized snapshots for all eight providers while continuing
+   to refresh the legacy path. Repeated source digests skip D1 writes.
+5. Verify `/api/raw/status` reports `ready: true` and compare authenticated
+   `GET /api/raw/prices` against public `GET /api/prices`: provider coverage,
+   count, ranking inputs, price values, and UI across EU/US and CPU filters.
+   The raw preview requires `Authorization: Bearer <IMPORT_TOKEN>`.
+6. **Only after verification**, explicitly enable `READ_KEEPER_SNAPSHOTS=1`
+   as a Worker environment variable and deploy. The public endpoint switches
+   to the compact, materialized SuperSQLite snapshot and continues to fall
+   back to the unchanged legacy data if the raw read fails.
+7. Once observed healthy across refreshes, optionally set the GitHub workflow
+   environment variable `CLOUD_CI_LEGACY_REFRESH=0`. This stops writing legacy
+   offers but does not delete their tables. Keep it unset until then.
+
+Rollback: remove `READ_KEEPER_SNAPSHOTS` (or set it to `0`) and redeploy to
+restore legacy reads. Keep legacy refreshing during initial observation.
+The new `keeper_*` tables and documents are not required for rollback.
+
+### Import lifecycle and reliability
+
+`/api/raw-import/begin`, `/chunk`, `/commit`, `/status`, and `/prune` require the
+same `IMPORT_TOKEN` used by the legacy import endpoints. Upload chunks contain
+at most 20 documents and are bounded to approximately 48 KiB on the client.
+SuperSQLite uses deterministic per-batch IDs and rejects conflicting retries.
+Publication checks the total document count and presence of both raw and
+materialized types, then atomically updates the D1 head; incomplete or competing batches cannot become visible.
+After successful publication the previous snapshot is retained for rollback,
+and only an older grandparent may be pruned. If cleanup fails, the refresh
+continues safely; orphaned pending batches can be reviewed separately.
+
+The raw-source digest includes a `MATERIALIZATION_VERSION` token; bump this
+whenever normalized offer semantics change so existing Keeper input is
+reprocessed into a fresh materialized snapshot.
+
+**Capacity warning:** Full Keeper records are substantially larger than
+compact offers (a recent Germany query returned 1,766 objects (1,723 with usable offers)
+and about 5.9 MB of JSON; the largest eligible source record was 4.7 KiB). Raw storage and full refreshes therefore consume additional
+D1 writes/storage and upstream API traffic. Monitor Cloudflare's D1 quotas and
+Worker cost after rollout. Do not enable read cutover or remove old tables
+before measuring these operational effects.
+
+
 ## Location filter and Buildkite AMI preset
 
 The location dropdown supports:
