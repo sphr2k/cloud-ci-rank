@@ -5,8 +5,8 @@ const $=<T extends HTMLElement=HTMLElement>(id:string):T=>{
  if(!element)throw new Error('Missing element #'+id);
  return element as T;
 };
-const state:{eu:boolean;us:boolean;maxVcpu:number;metric:RankingMetric;regionFilter:RegionFilter;limit:number;sorted:Offer[]}={
- eu:true,us:true,maxVcpu:16,metric:'allcore',regionFilter:'all',limit:100,sorted:[]
+const state:{eu:boolean;us:boolean;maxVcpu:number;metric:RankingMetric;regionFilter:RegionFilter;arch:'all'|'ARM64'|'x86-64';limit:number;sorted:Offer[]}={
+ eu:true,us:true,maxVcpu:16,metric:'allcore',regionFilter:'all',arch:'all',limit:100,sorted:[]
 };
 let offers:Offer[]=[];
 const money=(n:number,p=5)=>'$'+n.toFixed(p);
@@ -98,6 +98,7 @@ function render(){
  $<HTMLSelectElement>('max-vcpu').value=String(state.maxVcpu);
  $<HTMLSelectElement>('ranking-metric').value=state.metric;
  $<HTMLSelectElement>('region-filter').value=state.regionFilter;
+ $<HTMLSelectElement>('arch-filter').value=state.arch;
  const geographicScope=state.eu&&state.us?'Europa + USA':state.eu?'Nur Europa':'Nur USA';
  const place=$<HTMLSelectElement>('region-filter').selectedOptions[0]?.textContent;
  $('scope-text').textContent=state.regionFilter==='all'?geographicScope:(place||geographicScope);
@@ -135,6 +136,10 @@ $<HTMLSelectElement>('region-filter').addEventListener('change',event=>{
     : x.provider==='AWS'&&x.regionId===state.regionFilter.slice(4));
   if(chosen){state.eu=chosen.geo==='eu';state.us=chosen.geo==='us';}
  }
+ state.limit=100;render();
+});
+$<HTMLSelectElement>('arch-filter').addEventListener('change',event=>{
+ state.arch=(event.target as HTMLSelectElement).value as typeof state.arch;
  state.limit=100;render();
 });
 $<HTMLSelectElement>('ranking-metric').addEventListener('change',event=>{
