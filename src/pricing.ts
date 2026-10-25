@@ -28,7 +28,7 @@ export function bestByGeo(rows:Iterable<Offer>):Offer[]{
  }
  return [...best.values()];
 }
-export interface Selection {eu:boolean;us:boolean;maxVcpu:number;metric?:RankingMetric;regionFilter?:RegionFilter}
+export interface Selection {eu:boolean;us:boolean;maxVcpu:number;metric?:RankingMetric;regionFilter?:RegionFilter;arch?:'all'|'ARM64'|'x86-64'}
 const better=(a:Offer,b:Offer,metric:RankingMetric):boolean=>{
  if(metric==='allcore'){
   const aa=throughputPerDollar(a),bb=throughputPerDollar(b);
@@ -40,6 +40,7 @@ export function ranking(rows:Iterable<Offer>,s:Selection):Offer[]{
  const best=new Map<string,Offer>(),metric=s.metric||'allcore';
  for(const x of rows){
   if(x.vcpu>s.maxVcpu)continue;
+  if(s.arch&&s.arch!=='all'&&x.arch!==s.arch)continue;
   const filter=s.regionFilter??'all';
   const country=x.countryCode??countryFromRegionLabel(x.region);
   if(filter==='buildkite' && !(x.provider==='AWS'&&x.regionId&&BUILDKITE_AMI_REGION_SET.has(x.regionId)))continue;

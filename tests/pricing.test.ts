@@ -75,3 +75,11 @@ test('AWS Keeper conversion marks region-scoped quotes with region and country k
  assert.equal(rows[0].hour_usd,.0393);
  assert.match(rows[0].evidence,/region-minimum/);
 });
+
+test('architecture selector combines with AWS region and Buildkite presets',()=>{
+ const a={...row,regionId:'eu-central-1',countryCode:'DE',geo:'eu' as const,arch:'ARM64'};
+ const x={...a,instance:'amd',family:'amd',arch:'x86-64'};
+ assert.deepEqual(ranking([a,x],{eu:true,us:false,maxVcpu:16,arch:'ARM64',regionFilter:'buildkite'}).map(v=>v.arch),['ARM64']);
+ assert.deepEqual(ranking([a,x],{eu:true,us:false,maxVcpu:16,arch:'x86-64',regionFilter:'aws:eu-central-1'}).map(v=>v.arch),['x86-64']);
+ assert.equal(ranking([a,x],{eu:true,us:false,maxVcpu:16,arch:'ARM64',regionFilter:'aws:us-east-1'}).length,0);
+});
