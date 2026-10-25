@@ -98,11 +98,38 @@ async function publishLegacy(grouped: Record<string, import('../src/pricing').Of
   }
 }
 
+async function verifyOfferSnapshots(grouped: Record<string, import('../src/pricing').Offer[]>): Promise<void> {
+  const response=await fetch(endpoint+'/api/snapshots/prices',{
+    headers:{authorization:'Bearer '+token,'cache-control':'no-cache'}
+  });
+  if(!response.ok) throw new Error('Offer snapshot read verification failed: HTTP '+response.status+' '+(await response.text()).slice(0,200));
+  const data=await response.json() as {offers:import('../src/pricing').Offer[]};
+  if(!Array.isArray(data.offers)) throw new Error('Snapshot returned no Offer array');
+  const actual=new Map<string,import('../src/pricing').Offer[]>();
+  for(const offer of data.offers){
+    if(!actual.has(offer.provider))actual.set(offer.provider,[]);
+    actual.get(offer.provider)!.push(offer);
+  }
+  for(const vendor of KEEPER_VENDORS){
+    const expected=grouped[vendor],received=actual.get(vendor)??[];
+    if(expected.length!==received.length||snapshotDigest(expected)!==snapshotDigest(received)){
+      throw new Error(vendor+' snapshot verification mismatch: expected '+expected.length+', received '+received.length);
+    }
+    console.log(vendor,'Offer-only snapshot verified:',received.length,'Offers');
+  }
+  if(data.offers.length!==Object.values(grouped).reduce((sum,rows)=>sum+rows.length,0)){
+    throw new Error('Snapshot contains unexpected extra Offer records');
+  }
+}
+
 async function main(): Promise<void> {
   const available=await snapshotAvailable();
   const grouped=await fetchKeeperAll();
-  if (available) await publishOffers(grouped,available);
-  else console.log('Offer snapshot endpoint not deployed; continuing legacy ingestion');
+  if (available) {
+    await publishOffers(grouped,available);
+    // Verify the actual production Worker read path, not just SQL row counts.
+    await verifyOfferSnapshots(grouped);
+  } else console.log('Offer snapshot endpoint not deployed; continuing legacy ingestion');
   // Retain legacy writes until production read cutover is verified.
   if (process.env.CLOUD_CI_LEGACY_REFRESH !== '0' || !available) await publishLegacy(grouped);
 }
