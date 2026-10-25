@@ -11,6 +11,9 @@
       "migrations_dir": "migrations"
     }
   ],
+  "vars": {
+    "READ_KEEPER_SNAPSHOTS": "1"
+  },
   "observability": {
     "enabled": true
   },
