@@ -13,8 +13,9 @@ export interface KeeperServer {
  selected_benchmark_score?:number|null;min_price_spot?:number|null;min_price_ondemand?:number|null;
  observed_at?:string;status?:string;
 }
+export interface KeeperRegion {regionId:string;name:string;country:string}
 const displayNames=new Intl.DisplayNames(['de'],{type:'region'});
-export function keeperRows(data:unknown,country:string,single:Map<string,number>):Offer[]{
+export function keeperRows(data:unknown,country:string,single:Map<string,number>,awsRegion?:KeeperRegion):Offer[]{
  if(!Array.isArray(data))throw new Error('Keeper /servers must return an array');
  const geo=country==='US'?'us':'eu';
  const label=displayNames.of(country)||country;
@@ -38,8 +39,9 @@ export function keeperRows(data:unknown,country:string,single:Map<string,number>
    const hourly=Number(value);
    if(!Number.isFinite(hourly)||hourly<=0)continue;
    result.push({provider,instance,family,arch,processor,vcpu,ram,model,hour_usd:hourly,geo,
-     region:label+' ('+country+')',source:KEEPER_API+'/servers',
-     evidence:'Spare Cores country-minimum '+model+' price (no capacity guarantee)',
+     region:awsRegion?awsRegion.name+' ('+awsRegion.regionId+')':label+' ('+country+')',
+     regionId:awsRegion?.regionId??null,countryCode:country,source:KEEPER_API+'/servers',
+     evidence:'Spare Cores '+(awsRegion?'AWS region-minimum':'country-minimum')+' '+model+' price (no capacity guarantee)',
      asof:String(x.observed_at||'').slice(0,10),data_class:'keeper',interruption:null,
      benchAll:allcore,benchSingle:singlecore});
   }
@@ -63,7 +65,7 @@ async function keeperGet(fetcher:typeof fetch,url:string):Promise<unknown>{
 }
 /** The raw Keeper server document is preserved verbatim; only country and
  * single-core benchmark (fetched from a distinct endpoint) are attached. */
-export interface KeeperRawDocument { country: string; raw: KeeperServer; single: number | null }
+export interface KeeperRawDocument { country: string; raw: KeeperServer; single: number | null; awsRegion?:KeeperRegion }
 export function keeperVendor(raw: Pick<KeeperServer, 'vendor_id'>): KeeperVendor | undefined {
  return KEEPER_VENDORS.find(v=>vendorIds[v]===raw.vendor_id);
 }
@@ -79,6 +81,15 @@ export async function fetchKeeperRawAll(fetcher: typeof fetch = fetch): Promise<
   const x=r as KeeperServer,s=Number(x.selected_benchmark_score);
   if(Number.isFinite(s)&&s>0)single.set(x.vendor_id+':'+x.server_id,s);
  }
+ // Keeper uses country minima for non-AWS vendors, but real region-level
+ // pricing for AWS; preserve that selection context with the raw JSON.
+ const catalog=await keeperGet(fetcher,KEEPER_API+'/table/region');
+ if(!Array.isArray(catalog))throw new Error('Keeper region catalog must be an array');
+ const awsRegions:KeeperRegion[]=catalog.filter((x):x is Record<string,unknown>=>!!x&&typeof x==='object')
+   .filter(x=>x.vendor_id==='aws'&&x.status==='active'&&COUNTRIES.includes(x.country_id as typeof COUNTRIES[number]))
+   .map(x=>({regionId:String(x.region_id),name:String(x.display_name||x.name||x.region_id),country:String(x.country_id)}))
+   .sort((a,b)=>a.regionId.localeCompare(b.regionId));
+ if(!awsRegions.length)throw new Error('Keeper returned no active AWS regions');
  const byVendor=Object.fromEntries(KEEPER_VENDORS.map(v=>[v,[]])) as unknown as Record<KeeperVendor,KeeperRawDocument[]>;
  for(let i=0;i<COUNTRIES.length;i+=2){
   const batch=await Promise.all(COUNTRIES.slice(i,i+2).map(async country=>{
@@ -92,12 +103,33 @@ export async function fetchKeeperRawAll(fetcher: typeof fetch = fetch): Promise<
     if(!item||typeof item!=='object')continue;
     const raw=item as KeeperServer;
     const vendor=keeperVendor(raw);
-    if(!vendor||!keeperRows([raw],country,single).length)continue;
+    if(!vendor||vendor==='AWS'||!keeperRows([raw],country,single).length)continue;
     selected.push({vendor,doc:{country,raw,single:single.get(raw.vendor_id+':'+raw.server_id)??null}});
    }
    return selected;
   }));
   for(const rows of batch)for(const {vendor,doc} of rows)byVendor[vendor].push(doc);
+ }
+ // AWS is queried for each supported active region; country-wide AWS quotes
+ // are intentionally excluded to preserve the new exact-region UI semantics.
+ for(let i=0;i<awsRegions.length;i+=2){
+  const batch=await Promise.all(awsRegions.slice(i,i+2).map(async region=>{
+   const url=new URL('/servers',KEEPER_API);
+   for(const [key,value] of Object.entries({vendor:'aws',regions:region.regionId,vcpus_min:'8',vcpus_max:'64',memory_min:'16',gpu_max:'0',benchmark_id:'stress_ng:bestn',best_price_allocation:'ANY',limit:'-1'}))
+    url.searchParams.set(key,value);
+   const rows=await keeperGet(fetcher,url.toString());
+   if(!Array.isArray(rows))throw new Error('Keeper AWS '+region.regionId+' response must be an array');
+   const selected:KeeperRawDocument[]=[];
+   for(const item of rows){
+    if(!item||typeof item!=='object')continue;
+    const raw=item as KeeperServer;
+    if(keeperVendor(raw)!=='AWS'||!keeperRows([raw],region.country,single,region).length)continue;
+    selected.push({country:region.country,awsRegion:region,raw,
+      single:single.get(raw.vendor_id+':'+raw.server_id)??null});
+   }
+   return selected;
+  }));
+  for(const rows of batch)byVendor.AWS.push(...rows);
  }
  for(const [vendor,rows] of Object.entries(byVendor))if(!rows.length)throw new Error('Keeper missing vendor '+vendor);
  return byVendor;
@@ -110,7 +142,7 @@ export function offersFromKeeperRaw(documents:Iterable<KeeperRawDocument>):Offer
   const key=doc.raw.vendor_id+':'+doc.raw.server_id;
   const singles=new Map<string,number>();
   if(doc.single!==null)singles.set(key,doc.single);
-  rows.push(...keeperRows([doc.raw],doc.country,singles));
+  rows.push(...keeperRows([doc.raw],doc.country,singles,doc.awsRegion));
  }
  return compactCandidates(bestByGeo(rows));
 }

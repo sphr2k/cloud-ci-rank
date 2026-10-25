@@ -11,7 +11,8 @@ const KeeperRawEntry = type({
     vendor_id: 'string', server_id: 'string', name: 'string',
     vcpus: 'number', memory_amount: 'number'
   },
-  single: 'number | null'
+  single: 'number | null',
+  'awsRegion?': {regionId:'string',name:'string',country:'string'}
 });
 
 /** Materialized API payload from the same atomic batch, small and indexed. */
@@ -21,7 +22,7 @@ const OfferEntry = type({
     provider: "'AWS' | 'GCP' | 'AZURE' | 'HCLOUD' | 'OVH' | 'UPCLOUD' | 'VULTR' | 'ALICLOUD'",
     instance: 'string', family: 'string', arch: 'string', processor: 'string',
     vcpu: 'number', ram: 'number', model: "'Spot' | 'On-Demand'",
-    hour_usd: 'number', region: 'string', geo: "'eu' | 'us' | 'global'",
+    hour_usd: 'number', region: 'string', 'regionId?': 'string | null', 'countryCode?': 'string | null', geo: "'eu' | 'us' | 'global'",
     source: 'string', evidence: 'string', asof: 'string', data_class: 'string',
     interruption: 'string | null', benchAll: 'number | null', benchSingle: 'number | null'
   }

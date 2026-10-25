@@ -1,18 +1,19 @@
 import { ranking, score, throughputPerDollar, type DataEnvelope, type Offer, type RankingMetric } from './pricing';
+import { countryFromRegionLabel, type RegionFilter } from './regions';
 const $=<T extends HTMLElement=HTMLElement>(id:string):T=>{
  const element=document.getElementById(id);
  if(!element)throw new Error('Missing element #'+id);
  return element as T;
 };
-const state:{eu:boolean;us:boolean;maxVcpu:number;metric:RankingMetric;limit:number;sorted:Offer[]}={
- eu:true,us:true,maxVcpu:16,metric:'allcore',limit:100,sorted:[]
+const state:{eu:boolean;us:boolean;maxVcpu:number;metric:RankingMetric;regionFilter:RegionFilter;limit:number;sorted:Offer[]}={
+ eu:true,us:true,maxVcpu:16,metric:'allcore',regionFilter:'all',limit:100,sorted:[]
 };
 let offers:Offer[]=[];
 const money=(n:number,p=5)=>'$'+n.toFixed(p);
 const nice=(n:number)=>n.toLocaleString('de-DE');
 const fmtBench=(n:number|null)=>n===null?'–':nice(Math.round(n));
 const metricValue=(x:Offer)=>state.metric==='allcore'?throughputPerDollar(x):score(x);
-const cols=['provider','instance','processor','arch','model','region','geo','vcpu','ram','hour_usd','per_unit_hour_usd','bench_all','bench_single','allcore_per_usd','source','evidence','asof','data_class'] as const;
+const cols=['provider','instance','processor','arch','model','region','region_id','country_code','geo','vcpu','ram','hour_usd','per_unit_hour_usd','bench_all','bench_single','allcore_per_usd','source','evidence','asof','data_class'] as const;
 const add=(parent:HTMLElement,tag:string,value?:string|number,cls?:string):HTMLElement=>{
  const element=document.createElement(tag);
  if(value!==undefined)element.textContent=String(value);
@@ -41,7 +42,7 @@ function rowElement(x:Offer,i:number,best:number):HTMLTableRowElement{
  add(tr,'td',fmtBench(x.benchSingle),'num');
  add(tr,'td',money(x.hour_usd,4),'num');
  const place=add(tr,'td');add(place,'div',x.region,'region-label');
- add(place,'div','Länder-Minimum; genaue Zone ungeprüft','sub');
+ add(place,'div',x.regionId?'AWS-Regionsminimum; AZ ungeprüft':'Länderminimum; Zone ungeprüft','sub');
  return tr;
 }
 function renderLeaders(rows:Offer[]){
@@ -67,12 +68,39 @@ function renderLeaders(rows:Offer[]){
  }
  $('provider-leaders').replaceChildren(fragment);
 }
+const countryNames=new Intl.DisplayNames(['de'],{type:'region'});
+function populateRegions(){
+ const select=$<HTMLSelectElement>('region-filter');
+ const countries=new Set<string>(),aws=new Map<string,string>();
+ for(const offer of offers){
+  const country=offer.countryCode??countryFromRegionLabel(offer.region);
+  if(country)countries.add(country);
+  if(offer.provider==='AWS'&&offer.regionId)aws.set(offer.regionId,offer.region);
+ }
+ const initial=(new Option('Alle Regionen','all'));
+ select.replaceChildren(initial,new Option('AWS · Buildkite-AMI-Regionen','buildkite'));
+ const byCountry=document.createElement('optgroup');byCountry.label='Länder · alle Anbieter';
+ for(const c of [...countries].sort((a,b)=>String(countryNames.of(a)).localeCompare(String(countryNames.of(b)),'de'))){
+  byCountry.append(new Option((countryNames.of(c)||c)+' ('+c+')','country:'+c));
+ }
+ select.append(byCountry);
+ const byRegion=document.createElement('optgroup');byRegion.label='AWS · einzelne Regionen';
+ for(const [id,label] of [...aws].sort(([a],[b])=>a.localeCompare(b))){
+  byRegion.append(new Option(label,'aws:'+id));
+ }
+ select.append(byRegion);
+ if(!Array.from(select.options).some(opt=>opt.value===state.regionFilter))state.regionFilter='all';
+ select.value=state.regionFilter;
+}
 function render(){
  $('toggle-eu').setAttribute('aria-pressed',String(state.eu));
  $('toggle-us').setAttribute('aria-pressed',String(state.us));
  $<HTMLSelectElement>('max-vcpu').value=String(state.maxVcpu);
  $<HTMLSelectElement>('ranking-metric').value=state.metric;
- $('scope-text').textContent=state.eu&&state.us?'Europa + USA':state.eu?'Nur Europa':'Nur USA';
+ $<HTMLSelectElement>('region-filter').value=state.regionFilter;
+ const geographicScope=state.eu&&state.us?'Europa + USA':state.eu?'Nur Europa':'Nur USA';
+ const place=$<HTMLSelectElement>('region-filter').selectedOptions[0]?.textContent;
+ $('scope-text').textContent=state.regionFilter==='all'?geographicScope:(place||geographicScope);
  state.sorted=ranking(offers,state);
  const rows=state.sorted,first=rows[0],value=first?metricValue(first):null;
  $('best').textContent=value===null?'–':state.metric==='allcore'?nice(Math.round(value)):money(value);
@@ -98,6 +126,17 @@ $<HTMLSelectElement>('max-vcpu').addEventListener('change',event=>{
  state.maxVcpu=Number((event.target as HTMLSelectElement).value);
  state.limit=100;render();
 });
+$<HTMLSelectElement>('region-filter').addEventListener('change',event=>{
+ state.regionFilter=(event.target as HTMLSelectElement).value;
+ if(state.regionFilter==='buildkite'){state.eu=true;state.us=true;}
+ else if(state.regionFilter!=='all'){
+  const chosen=offers.find(x=>state.regionFilter.startsWith('country:')
+    ? (x.countryCode??countryFromRegionLabel(x.region))===state.regionFilter.slice(8)
+    : x.provider==='AWS'&&x.regionId===state.regionFilter.slice(4));
+  if(chosen){state.eu=chosen.geo==='eu';state.us=chosen.geo==='us';}
+ }
+ state.limit=100;render();
+});
 $<HTMLSelectElement>('ranking-metric').addEventListener('change',event=>{
  state.metric=(event.target as HTMLSelectElement).value as RankingMetric;
  state.limit=100;render();
@@ -107,7 +146,7 @@ $('export').addEventListener('click',()=>{
  const quote=(v:unknown)=>'"'+String(v??'').replaceAll('"','""')+'"';
  const csv=[cols.join(','),...state.sorted.map(x=>cols.map(k=>quote(
   k==='per_unit_hour_usd'?score(x):k==='bench_all'?x.benchAll:k==='bench_single'?x.benchSingle:
-  k==='allcore_per_usd'?throughputPerDollar(x):x[k as keyof Offer]
+  k==='allcore_per_usd'?throughputPerDollar(x):k==='region_id'?x.regionId:k==='country_code'?x.countryCode:x[k as keyof Offer]
  )).join(','))];
  const url=URL.createObjectURL(new Blob([csv.join('\r\n')],{type:'text/csv;charset=utf-8'}));
  const link=document.createElement('a');link.href=url;link.download='cloud-ci-ranking.csv';
@@ -119,6 +158,7 @@ async function main(){
   if(!response.ok)throw new Error('HTTP '+response.status);
   const result=await response.json() as DataEnvelope;
   offers=result.offers.filter(x=>x.data_class==='keeper'&&['AWS','GCP','AZURE','HCLOUD','OVH','UPCLOUD','VULTR','ALICLOUD'].includes(x.provider));
+  populateRegions();
   $('data-warning').textContent=offers.length?'Keeper-Import vom '+result.updatedAt+'; Benchmarks stress_ng:bestn/best1.':'Noch keine Keeper-Daten importiert.';
  }catch(e){
   $('data-warning').textContent='Preisdaten nicht verfügbar: '+String(e);

@@ -6,7 +6,7 @@ import type { KeeperStored } from '../src/raw-schema';
 export function digestOffers(offers: Offer[]): string {
   const normalized = offers.map(x => [
     x.instance, x.family, x.arch, x.processor, x.vcpu, x.ram, x.model,
-    x.hour_usd, x.region, x.geo, x.benchAll, x.benchSingle
+    x.hour_usd, x.region, x.regionId, x.countryCode, x.geo, x.benchAll, x.benchSingle
   ]).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
   return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
@@ -22,7 +22,7 @@ export function canonicalJson(value: unknown): string {
 }
 // Bump this token whenever normalized/materialized offer semantics change.
 // A new code version then reprocesses unchanged upstream Keeper data.
-export const MATERIALIZATION_VERSION = 'keeper-offer-v1';
+export const MATERIALIZATION_VERSION = 'keeper-offer-region-v2';
 export function digestRaw(documents: readonly KeeperRawDocument[]): string {
   const canonical = documents.map(canonicalJson).sort();
   return createHash('sha256').update(MATERIALIZATION_VERSION).update('\n').update(JSON.stringify(canonical)).digest('hex');

@@ -1,12 +1,14 @@
 export type Provider='AWS'|'GCP'|'AZURE'|'HCLOUD'|'OVH'|'UPCLOUD'|'VULTR'|'ALICLOUD';
 export type Geography='eu'|'us'|'global';
 export type PurchaseModel='Spot'|'On-Demand';
+import { BUILDKITE_AMI_REGION_SET, countryFromRegionLabel, type RegionFilter } from './regions';
 export type RankingMetric='allcore'|'nominal';
 export interface Offer {
  provider:Provider;instance:string;family:string;arch:string;processor:string;
  vcpu:number;ram:number;model:PurchaseModel;hour_usd:number;region:string;geo:Geography;
  source:string;evidence:string;asof:string;data_class:string;interruption:string|null;
  benchAll:number|null;benchSingle:number|null;
+ regionId?:string|null;countryCode?:string|null;
 }
 export interface DataEnvelope {
  updatedAt:string;
@@ -20,13 +22,13 @@ export const throughputPerDollar=(x:Offer)=>x.benchAll===null||x.benchAll<=0?nul
 export function bestByGeo(rows:Iterable<Offer>):Offer[]{
  const best=new Map<string,Offer>();
  for(const x of rows){
-  const k=[x.provider,x.family||x.instance,x.model,x.arch,x.geo,x.vcpu,x.ram].join('|');
+  const k=[x.provider,x.family||x.instance,x.model,x.arch,x.geo,x.regionId??x.countryCode??x.geo,x.vcpu,x.ram].join('|');
   const prior=best.get(k);
   if(!prior||score(x)<score(prior)||(score(x)===score(prior)&&x.hour_usd<prior.hour_usd))best.set(k,x);
  }
  return [...best.values()];
 }
-export interface Selection {eu:boolean;us:boolean;maxVcpu:number;metric?:RankingMetric}
+export interface Selection {eu:boolean;us:boolean;maxVcpu:number;metric?:RankingMetric;regionFilter?:RegionFilter}
 const better=(a:Offer,b:Offer,metric:RankingMetric):boolean=>{
  if(metric==='allcore'){
   const aa=throughputPerDollar(a),bb=throughputPerDollar(b);
@@ -38,6 +40,11 @@ export function ranking(rows:Iterable<Offer>,s:Selection):Offer[]{
  const best=new Map<string,Offer>(),metric=s.metric||'allcore';
  for(const x of rows){
   if(x.vcpu>s.maxVcpu)continue;
+  const filter=s.regionFilter??'all';
+  const country=x.countryCode??countryFromRegionLabel(x.region);
+  if(filter==='buildkite' && !(x.provider==='AWS'&&x.regionId&&BUILDKITE_AMI_REGION_SET.has(x.regionId)))continue;
+  if(filter.startsWith('aws:') && !(x.provider==='AWS'&&x.regionId===filter.slice(4)))continue;
+  if(filter.startsWith('country:') && country!==filter.slice(8))continue;
   if(!(x.geo==='global'||(x.geo==='eu'&&s.eu)||(x.geo==='us'&&s.us)))continue;
   const k=[x.provider,x.family||x.instance,x.model,x.arch].join('|');
   const prior=best.get(k);
@@ -59,7 +66,7 @@ export function ranking(rows:Iterable<Offer>,s:Selection):Offer[]{
 export function compactCandidates(rows:Iterable<Offer>):Offer[]{
  const groups=new Map<string,Offer[]>();
  for(const x of rows){
-  const key=[x.provider,x.family||x.instance,x.model,x.arch,x.geo].join('|');
+  const key=[x.provider,x.family||x.instance,x.model,x.arch,x.geo,x.regionId??x.countryCode??x.geo].join('|');
   if(!groups.has(key))groups.set(key,[]);
   groups.get(key)!.push(x);
  }

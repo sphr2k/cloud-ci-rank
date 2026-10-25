@@ -17,7 +17,7 @@ const beginSchema=z.object({
 const offerSchema=z.object({
   provider:providerSchema,instance:z.string(),family:z.string(),arch:z.string(),
   processor:z.string(),vcpu:z.number().int(),ram:z.number(),model:z.enum(['Spot','On-Demand']),
-  hour_usd:z.number().positive(),region:z.string(),geo:z.enum(['eu','us','global']),
+  hour_usd:z.number().positive(),region:z.string(),regionId:z.string().nullable().optional(),countryCode:z.string().nullable().optional(),geo:z.enum(['eu','us','global']),
   source:z.string(),evidence:z.string(),asof:z.string(),data_class:z.string(),interruption:z.string().nullable(),benchAll:z.number().positive().nullable(),benchSingle:z.number().positive().nullable(),
 });
 const chunkSchema=z.object({batchId:z.string().uuid(),offset:z.number().int().nonnegative(),offers:z.array(offerSchema).min(1).max(20)});
@@ -44,10 +44,10 @@ async function chunk(env:Env,request:Request):Promise<Response>{
   const rows=data.offers.map((x,i)=>Instance.parse({
     id:data.batchId+':'+(data.offset+i),batchId:data.batchId,provider:x.provider,
     instance:x.instance,family:x.family,arch:x.arch,processor:x.processor,vcpu:x.vcpu,ram:x.ram,
-    model:x.model,hourUsd:x.hour_usd,region:x.region,geo:x.geo,source:x.source,
+    model:x.model,hourUsd:x.hour_usd,region:x.region,regionId:x.regionId??null,countryCode:x.countryCode??null,geo:x.geo,source:x.source,
     evidence:x.evidence,asof:x.asof,dataClass:x.data_class,interruption:x.interruption,benchAll:x.benchAll,benchSingle:x.benchSingle,
   }));
-  for(let i=0;i<rows.length;i+=5)await db.insert(instances).values(rows.slice(i,i+5)).onConflictDoNothing();
+  for(let i=0;i<rows.length;i+=4)await db.insert(instances).values(rows.slice(i,i+4)).onConflictDoNothing();
   return Response.json({status:'accepted',count:rows.length});
 }
 async function commit(env:Env,request:Request):Promise<Response>{
@@ -69,7 +69,7 @@ async function prices(env:Env,request:Request):Promise<Response>{
   const batches=statuses.map(x=>x.activeBatch).filter((x):x is string=>!!x);
   const rows=batches.length?await db.select().from(instances).where(inArray(instances.batchId,batches)).all():[];
   const offers:Offer[]=rows.map(x=>({provider:x.provider,instance:x.instance,family:x.family,arch:x.arch,processor:x.processor,
-    vcpu:x.vcpu,ram:x.ram,model:x.model,hour_usd:x.hourUsd,region:x.region,geo:x.geo,source:x.source,
+    vcpu:x.vcpu,ram:x.ram,model:x.model,hour_usd:x.hourUsd,region:x.region,regionId:x.regionId,countryCode:x.countryCode,geo:x.geo,source:x.source,
     evidence:x.evidence,asof:x.asof,data_class:x.dataClass,interruption:x.interruption,benchAll:x.benchAll,benchSingle:x.benchSingle}));
   const data:DataEnvelope={updatedAt:statuses.map(x=>x.changedAt).sort().at(-1)||'',
     providers:Object.fromEntries(statuses.map(x=>[x.provider,{checkedAt:x.checkedAt,changedAt:x.changedAt,

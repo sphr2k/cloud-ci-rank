@@ -45,9 +45,9 @@ The results do not model boot time, cache warmup, total Go/Bun build walltime, E
 ## SuperSQLite raw Keeper snapshots (additive rollout)
 
 The latest pipeline keeps the **original Keeper `/servers` JSON** as typed
-SuperSQLite documents in Cloudflare D1. The only attached fields are the
-country queried and single-core score from the separate Keeper benchmark
-endpoint. Unknown source fields, nested CPU metadata, and future attributes
+SuperSQLite documents in Cloudflare D1. The attached context includes the
+country queried, exact AWS region where applicable, and single-core score
+from the separate Keeper benchmark endpoint. Unknown source fields, nested CPU metadata, and future attributes
 are preserved, not flattened into a relational `instances` schema.
 
 Each snapshot contains **two kinds of JSON documents** within one atomic
@@ -61,7 +61,7 @@ reprocessing; no country-by-country raw scan occurs on public requests.
 
 1. `npm ci && npm run check && npm test` – compile, typecheck, and exercise
    genuine workerd/D1 integration tests. Check this on GitHub CI before deploy.
-2. Apply **additive migration 0005** to the D1 binding *before* deploying the
+2. Apply **additive migrations 0005_region_filter and 0006_keeper_snapshots** to the D1 binding *before* deploying the
    Worker. Use `npx wrangler d1 migrations apply cloud-ci-rank --remote` (with
    authorized Cloudflare credentials). **Do not drop the legacy tables.**
 3. Deploy with the existing Worker configuration (`npm run deploy`).
@@ -108,3 +108,19 @@ and about 5.9 MB of JSON; the largest eligible source record was 4.7 KiB). Raw s
 D1 writes/storage and upstream API traffic. Monitor Cloudflare's D1 quotas and
 Worker cost after rollout. Do not enable read cutover or remove old tables
 before measuring these operational effects.
+
+## Location filter and Buildkite AMI preset
+
+The location dropdown supports:
+- All regions (default)
+- Country minima across all eight providers
+- Exact AWS regions, with region-specific Spot and On-Demand prices
+- AWS · Buildkite-AMI-Regionen, an AWS-only preset for regions in the official Elastic CI Stack for AWS v1.4.0 AMI map
+
+Buildkite native AMI regions in the supported app markets:
+- EU: eu-central-1, eu-north-1, eu-south-1, eu-west-1, eu-west-2, eu-west-3
+- US: us-east-1, us-east-2, us-west-1, us-west-2
+
+Spain (eu-south-2) and Zurich (eu-central-2) have accurate regional prices and appear in the individual region selector, but **not** in the upstream v1.4.0 native AMI preset. A mapping is not proof of AMI accessibility in the AWS account or available Spot capacity.
+
+Migration 0005_region_filter.sql adds region_id and country_code. Apply this before importing the new offers; historical AWS country minima will be replaced in the first completed refresh.
