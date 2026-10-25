@@ -13,5 +13,14 @@
   ],
   "observability": {
     "enabled": true
+  },
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "cloud-ci-rank-preview",
+        "database_id": "ed913b54-9147-4a80-a04f-aa372c4811db"
+      }
+    ]
   }
 }
