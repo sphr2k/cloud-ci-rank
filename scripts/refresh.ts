@@ -120,6 +120,19 @@ async function verifyOfferSnapshots(grouped: Record<string, import('../src/prici
   if(data.offers.length!==Object.values(grouped).reduce((sum,rows)=>sum+rows.length,0)){
     throw new Error('Snapshot contains unexpected extra Offer records');
   }
+  // Confirm the public endpoint actually routes to SuperSQLite, rather than
+  // returning a matching dataset through its legacy SQL fallback.
+  const publicResponse=await fetch(endpoint+'/api/prices?cutover-verify=1',{
+    headers:{'cache-control':'no-cache'}
+  });
+  if(!publicResponse.ok || publicResponse.headers.get('etag')!==response.headers.get('etag')) {
+    throw new Error('Public /api/prices does not serve the verified SuperSQLite snapshot');
+  }
+  const published=await publicResponse.json() as {offers:import('../src/pricing').Offer[]};
+  if(!Array.isArray(published.offers)||published.offers.length!==data.offers.length) {
+    throw new Error('Public /api/prices Offer count differs from SuperSQLite snapshot');
+  }
+  console.log('Public Offer-only cutover verified:',published.offers.length,'Offers');
 }
 
 async function main(): Promise<void> {
