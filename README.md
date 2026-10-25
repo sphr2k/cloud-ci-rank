@@ -80,8 +80,9 @@ existing Drizzle cache remains available as a rollback path.
 3. Verify `/api/snapshots/status` reports all eight providers ready and
    compare the authenticated `/api/snapshots/prices` response with
    legacy `/api/prices` (region coverage, offer totals, ranking, ARM/x86).
-4. Activate `READ_KEEPER_SNAPSHOTS=1` only after all eight providers are
-   verified. Read errors still fall back to the legacy dataset.
+4. Set `READ_KEEPER_SNAPSHOTS=1` in `wrangler.jsonc` after all eight providers
+   are verified (completed for the production cutover). Read errors continue
+   to fall back to the legacy dataset.
 5. Disable redundant legacy imports using the GitHub repository variable
    `CLOUD_CI_LEGACY_REFRESH=0`. Legacy SQL tables are kept for rollback,
    not dropped automatically.
