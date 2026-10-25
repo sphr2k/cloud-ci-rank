@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Cloud CI · Price Leaderboard</title>
+  <style>
+    :root{--bg:#080e15;--panel:#101a25;--panel2:#141f2c;--border:#263445;--text:#edf4f9;--muted:#91a6b9;--subtle:#607589;--accent:#63e0bd;--blue:#79b5fa;--amber:#ffd197;font:14px/1.4 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:var(--bg);font-variant-numeric:tabular-nums}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse 60% 30% at 50% -10%,#12344a55,transparent 90%),var(--bg)}
+    main{max-width:1430px;margin:0 auto;padding:40px 28px 64px}a{color:inherit}button{font:inherit;cursor:pointer}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px;color:#8fa5b9;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}.brand{display:flex;align-items:center;gap:10px}.mark{width:24px;height:24px;border-radius:7px;background:linear-gradient(140deg,#6be5c5,#3f78bd);display:grid;place-items:center;color:#071018;font-size:18px;font-weight:800}.right-top{text-transform:none;letter-spacing:0;font-weight:500;color:var(--subtle)}
+    header h1{font-size:clamp(34px,4vw,55px);letter-spacing:-.053em;line-height:1.05;margin:0 0 14px;font-weight:770}header h1 span{color:var(--accent)}
+    .intro{color:var(--muted);max-width:800px;font-size:15px;line-height:1.62;margin:0 0 26px}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:15px 17px;background:#111b27;border:1px solid var(--border);border-radius:12px;margin-bottom:18px}.toolbar-group{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.toolbar-label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:750}
+    .regions{display:flex;gap:5px;padding:4px;border-radius:9px;background:#0a131c;border:1px solid #263344}.region-btn{border:1px solid transparent;border-radius:7px;background:transparent;padding:9px 17px;color:#9baec1;font-size:13px;font-weight:700;display:flex;align-items:center;gap:9px;transition:background .12s}.region-btn[aria-pressed="true"]{border-color:#326a60;background:#173830;color:#b9ffdf}.region-btn:hover{color:#fff}.region-btn .dot{width:7px;height:7px;border-radius:999px;background:#4c6378}.region-btn[aria-pressed="true"] .dot{background:#73e2bd;box-shadow:0 0 0 3px #73e2bd26}
+    .vcpu-select{appearance:none;color:#d8f5ed;background:#0a131c;border:1px solid #326a60;border-radius:8px;padding:9px 32px 9px 12px;font:700 13px/1.4 inherit;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;color-scheme:dark;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' fill='none' stroke='%2373e2bd' stroke-width='1.4'/%3E%3C/svg%3E");background-position:right 10px center;background-repeat:no-repeat}.vcpu-select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.toolbar-aside{color:#8096ab;font-size:12px}.toolbar-aside strong{color:#c5d7e6}
+    .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px}.metric{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:19px 20px}.metric-title{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.075em}.metric-value{font-size:30px;letter-spacing:-.04em;font-weight:760;margin:7px 0 2px}.metric-value strong{color:var(--accent)}.unit{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:0}.metric-foot{font-size:12px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .leaders-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px}.leaders-title h2{font-size:17px;margin:0;letter-spacing:-.02em}.leaders-title span{color:var(--muted);font-size:12px}
+    .leaders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 27px}.leader{display:block;text-align:left;border:1px solid var(--border);background:var(--panel);border-radius:12px;padding:16px 18px;color:var(--text);cursor:pointer;min-width:0}.leader:hover{border-color:#4c8a92;background:#162735}.leader:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.leader-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.leader-rank{font-size:11px;color:#a3b2c2}.leader-price{font-size:25px;font-weight:750;letter-spacing:-.035em;margin:8px 0 4px;color:var(--accent)}.leader-price small{font-size:11px;color:var(--muted);font-weight:450;letter-spacing:0}.leader-vm{font-size:12px;font-weight:680;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.leader-note{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.5}.leader-region{font-size:10px;color:var(--subtle);margin-top:7px}
+    .listhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:4px 0 11px}.listhead h2{font-size:17px;letter-spacing:-.02em;margin:0 0 4px}.listhead p{margin:0;color:var(--muted);font-size:12px}.export{border:1px solid #334658;background:#142333;color:#d0e5f1;border-radius:7px;padding:9px 13px;font-size:12px;font-weight:650}.export:hover{background:#1f3142}
+    .table-wrap{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:auto}
+    table{border-collapse:collapse;width:100%;min-width:1120px;font-size:12.5px}th{background:#142131;color:#899db2;text-align:left;text-transform:uppercase;font-size:10px;letter-spacing:.075em;font-weight:750;white-space:nowrap;padding:14px 12px;position:sticky;top:0;z-index:1}td{padding:11px 12px;border-top:1px solid #223040;vertical-align:middle;white-space:nowrap}tbody tr:hover{background:#1a2a39}tbody tr:first-child{background:#12312d}tbody tr:nth-child(even):not(:first-child){background:#121e2b}tbody tr:nth-child(even):hover{background:#1a2a39}
+    .num{text-align:right}.rank{color:#7590a8;font-weight:750}.good{color:#86f0c9;font-weight:800;font-size:13px}.provider{font-size:11px;font-weight:800;border-radius:5px;padding:4px 7px;display:inline-block}.provider.aws{color:#ffca88;background:#3c2c1e}.provider.gcp{color:#a8c9ff;background:#1c3049}.provider.oci{color:#ffbaba;background:#40292a}
+    .instance{font-weight:720}.instance a{text-decoration:none}.instance a:hover{text-decoration:underline}.sub{font-size:10px;color:#7d91a7;line-height:1.5;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;font-weight:450}.pill{font-size:10px;padding:4px 8px;border-radius:20px;font-weight:680;display:inline-block}.pill.spot{background:#1a4038;color:#a2efca}.pill.ondemand{background:#343148;color:#cac2f9}.arch{font-size:11px;color:#c3d1de}.region-label{font-size:12px}.global{color:#efc78f}.bar{height:3px;width:90px;margin-top:6px;background:#273947;border-radius:3px;overflow:hidden;display:inline-block}.bar i{display:block;background:#6bdcc0;height:100%}
+    .after{display:flex;justify-content:center;padding-top:12px}.more{padding:10px 24px;border-radius:7px;border:1px solid var(--border);background:#12202d;color:#c9e4ef;font-weight:650}.more:hover{background:#1c3040}.more[hidden]{display:none}
+    .foot{margin-top:25px;padding:19px 22px;border:1px solid var(--border);border-radius:12px;background:#0f1823}.foot h3{font-size:13px;margin:0 0 8px}.foot p{color:#8fa4b8;font-size:12px;line-height:1.65;margin:5px 0}.foot strong{color:#cfdae4;font-weight:650}.fine{font-size:11px;color:#657b90;margin:18px 0 0;line-height:1.6}
+    @media(max-width:750px){.leaders{grid-template-columns:1fr;gap:9px}.leader{padding:12px 15px}.leader-price{font-size:23px}.leaders-title{align-items:flex-start;flex-direction:column;gap:3px}main{padding:23px 15px 42px}.top{margin-bottom:25px}.intro{font-size:13px}.metrics{grid-template-columns:1fr;gap:8px}.metric{padding:13px 16px}.metric-value{font-size:24px}.toolbar{padding:11px}.toolbar-aside{width:100%}.listhead{align-items:center}.bar{width:50px}.right-top{display:none}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="top"><div class="brand"><span class="mark" aria-hidden="true">≋</span> CLOUD CI / COST INTELLIGENCE</div><div class="right-top">__TIMESTAMP__</div></div>
+  <header><h1>Compute <span>leaderboard.</span></h1><p class="intro">Welche Cloud bietet die günstigsten Ressourcen für unsere CI-Builds? Ein Ranking nach <strong>CPU + RAM pro Dollar</strong> – ARM64, x86, Spot und On-Demand. Regionale Preisunterschiede werden berücksichtigt.</p></header>
+  <section class="toolbar" aria-label="Ranking-Filter"><div class="toolbar-group"><span class="toolbar-label">Regionen</span><div class="regions" role="group" aria-label="Regionen wählen"><button id="toggle-eu" class="region-btn" type="button" aria-pressed="true"><span class="dot"></span> Europa</button><button id="toggle-us" class="region-btn" type="button" aria-pressed="true"><span class="dot"></span> USA</button></div><label class="toolbar-label" for="max-vcpu">Max. vCPU</label><select id="max-vcpu" class="vcpu-select" aria-label="Maximale vCPU je VM"><option value="8">8</option><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option><option value="48">48</option><option value="64">64</option></select></div><div class="toolbar-aside">Asien ausgeschlossen · <strong id="scope-text">Europa + USA</strong></div></section>
+  <div class="metrics" aria-live="polite"><section class="metric"><div class="metric-title">Günstigste Kapazitätseinheit</div><div class="metric-value"><strong id="best">–</strong> <span class="unit">USD/h</span></div><div class="metric-foot" id="best-name">–</div></section><section class="metric"><div class="metric-title">Verglichene Angebote</div><div class="metric-value" id="count">–</div><div class="metric-foot" id="count-foot">–</div></section><section class="metric"><div class="metric-title">Spot-Angebote</div><div class="metric-value" id="spot-count">–</div><div class="metric-foot">inklusive des OCI-Preemptible-Modells</div></section></div>
+  <section aria-label="Bestpreis pro Cloud" id="provider-summary"><div class="leaders-title"><h2>Günstigster Kandidat je Cloud</h2><span>Original-Rang im gemeinsamen Ranking · Klick springt zur Zeile</span></div><div id="provider-leaders" class="leaders"></div></section>
+  <div class="listhead"><div><h2>Preisranking <span id="rank-count" style="color:#758ca3;font-size:12px;font-weight:500"></span></h2><p>Pro Instanzfamilie und Tarif der günstigste Kandidat innerhalb der gewählten Regionen</p></div><button id="export" class="export" type="button">CSV exportieren ↓</button></div>
+  <div class="table-wrap"><table><thead><tr><th>#</th><th>Cloud</th><th>VM / Prozessor</th><th>Arch.</th><th>Tarif</th><th class="num">vCPU</th><th class="num">GiB</th><th class="num">$/Einheit·h ↓</th><th class="num">$/VM·h</th><th class="num">$/VM·min</th><th>Region</th></tr></thead><tbody id="results"></tbody></table></div>
+  <div class="after"><button id="more" class="more" type="button" hidden>Mehr anzeigen</button></div>
+  <section class="foot"><h3>Berechnung & Grenzen</h3><p><strong>1 Einheit = 1 vCPU + 2 GiB RAM.</strong> Pro VM: Einheiten = min(vCPU, RAM/2), Score = USD/h ÷ Einheiten. Das Ranking misst <strong>Kapazitätspreis, nicht Build-Performance</strong>. Ein physischer ARM-Kern ist nicht zwangsläufig mit einem x86-SMT-Thread vergleichbar.</p><p><strong>Preisquellen:</strong> AWS: Vantage-Spot-Durchschnitt (7 Tage); GCP: veröffentlichter Regional-Spotpreis; OCI: Oracle-US-Dollar-Listenpreis, Preemptible als 50%-Modell. <strong>OCI hat keine regionale Preis-/Kapazitätsauskunft</strong>: „globaler Listenpreis“ bleibt bei Europa und USA sichtbar, bedeutet aber nicht, dass die VM dort erhältlich ist.</p><p>Keine Storage-, Netzwerk-, Start- oder Plattformkosten. Spot-Kapazität und Unterbrechungen sind nicht garantiert. <span id="data-warning">__STATUS__</span></p></section>
+  <p class="fine">Erstellt __TIMESTAMP__ · Preise je nach Quelle unterschiedlich aktuell · API-Key wird weder eingebettet noch benötigt.</p>
+</main>
+<script type="application/json" id="price-data">__DATA_JSON__</script>
+<script>
+(() => {
+  'use strict';
+  const offers = JSON.parse(document.querySelector('#price-data').textContent);
+  const $ = id => document.getElementById(id);
+  const state = {eu:true,us:true,maxVcpu:16,limit:100,sorted:[]};
+  const score = x => x.hour_usd / Math.min(x.vcpu, x.ram / 2);
+  const fmt = (v, places=5) => '$' + Number(v).toFixed(places);
+  const nice = v => Number(v).toLocaleString('de-DE');
+  const csvColumns = ['provider','instance','processor','arch','model','region','geo','vcpu','ram','hour_usd','per_unit_hour_usd','source','evidence','asof','data_class','interruption'];
+  const add = (parent, tag, text, cls) => { const el=document.createElement(tag); if (text!==undefined && text!==null) el.textContent=String(text); if(cls) el.className=cls; parent.appendChild(el); return el; };
+  function bestOffers() {
+    const best=new Map();
+    for (const row of offers) {
+      if (row.vcpu > state.maxVcpu) continue;
+      if (!(row.geo==='global' || (row.geo==='eu'&&state.eu) || (row.geo==='us'&&state.us))) continue;
+      const key=[row.provider,row.family||row.instance,row.model,row.arch].join('\u001f');
+      const prior=best.get(key);
+      if (!prior || score(row)<score(prior) || (score(row)===score(prior) && row.hour_usd<prior.hour_usd)) best.set(key,row);
+    }
+    return [...best.values()].sort((a,b) => score(a)-score(b) || a.hour_usd-b.hour_usd || a.instance.localeCompare(b.instance));
+  }
+  function rowEl(x, i, maxScore) {
+    const tr=document.createElement('tr');tr.id='offer-'+i;
+    add(tr,'td',String(i+1).padStart(2,'0'),'num rank');
+    const pv=add(tr,'td');add(pv,'span',x.provider,'provider '+x.provider.toLowerCase());
+    const inst=add(tr,'td',undefined,'instance');
+    const a=add(inst,'a',x.instance); if (String(x.source).startsWith('https://')) {a.href=x.source;a.target='_blank';a.rel='noopener noreferrer';}
+    add(inst,'div',x.processor||'CPU nicht spezifiziert','sub');
+    add(tr,'td',x.arch,'arch');
+    const model=add(tr,'td');add(model,'span',x.provider==='OCI' && x.model==='Spot'?'Preemptible −50%':x.model,'pill '+(x.model==='Spot'?'spot':'ondemand'));
+    add(tr,'td',x.vcpu,'num');add(tr,'td',x.ram,'num');
+    const cost=add(tr,'td',undefined,'num');add(cost,'div',fmt(score(x)),'good');
+    const bar=add(cost,'span',undefined,'bar');const part=add(bar,'i');part.style.width=Math.max(2,Math.min(100,100*maxScore/score(x))).toFixed(1)+'%';
+    add(tr,'td',fmt(x.hour_usd,4),'num');add(tr,'td',fmt(x.hour_usd/60,6),'num');
+    const place=add(tr,'td');add(place,'div',x.geo==='global'?'Globaler Listenpreis':x.region,'region-label '+(x.geo==='global'?'global':''));
+    if (x.geo==='global') add(place,'div','Regionale Verfügbarkeit ungeprüft','sub');
+    else if (x.interruption) add(place,'div','Spot-Unterbrechungen: '+x.interruption,'sub');
+    return tr;
+  }
+  function renderLeaders(rows) {
+    const container=$('provider-leaders');
+    const frag=document.createDocumentFragment();
+    for (const provider of ['AWS','GCP','OCI']) {
+      const idx=rows.findIndex(row=>row.provider===provider);
+      if (idx<0) continue;
+      const x=rows[idx], card=document.createElement('button');
+      card.type='button';card.className='leader';
+      const head=add(card,'div',undefined,'leader-head');
+      add(head,'span',provider,'provider '+provider.toLowerCase());
+      add(head,'span','Rang '+(idx+1),'leader-rank');
+      const cost=add(card,'div',undefined,'leader-price');
+      add(cost,'span',fmt(score(x)));
+      add(cost,'small',' / Einheit · h');
+      add(card,'div',x.instance+' · '+x.arch,'leader-vm');
+      const method=x.provider==='OCI' && x.model==='Spot'?'Preemptible −50% (berechnet)':x.model;
+      add(card,'div',method+' · '+x.vcpu+' vCPU / '+x.ram+' GiB','leader-note');
+      add(card,'div',x.geo==='global'?'Globaler OCI-Listenpreis · Verfügbarkeit ungeprüft':x.region,'leader-region');
+      card.setAttribute('aria-label',provider+' Rang '+(idx+1)+' im Ranking anzeigen');
+      card.addEventListener('click',()=>{
+        if(state.limit < idx+1) {state.limit=Math.ceil((idx+1)/100)*100;render();}
+        document.getElementById('offer-'+idx)?.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+      frag.appendChild(card);
+    }
+    container.replaceChildren(frag);
+  }
+  function render() {
+    $('toggle-eu').setAttribute('aria-pressed',String(state.eu));$('toggle-us').setAttribute('aria-pressed',String(state.us));
+    $('max-vcpu').value=String(state.maxVcpu);
+    $('scope-text').textContent = state.eu&&state.us?'Europa + USA':state.eu?'Nur Europa':'Nur USA';
+    state.sorted=bestOffers();const rows=state.sorted;
+    $('best').textContent=rows.length?fmt(score(rows[0])):'–';
+    $('best-name').textContent=rows.length?rows[0].provider+' · '+rows[0].instance+' · '+(rows[0].geo==='global'?'global':rows[0].region):'Kein Angebot';
+    $('count').textContent=nice(rows.length);
+    $('count-foot').textContent=[...new Set(rows.map(x=>x.provider))].join(' · ');
+    $('spot-count').textContent=nice(rows.filter(x=>x.model==='Spot').length);
+    $('rank-count').textContent='· '+nice(rows.length)+' Einträge';
+    renderLeaders(rows);
+    const shown=rows.slice(0,state.limit);const base=rows.length?score(rows[0]):1;
+    const frag=document.createDocumentFragment();shown.forEach((x,i)=>frag.appendChild(rowEl(x,i,base)));
+    $('results').replaceChildren(frag);
+    $('more').hidden=rows.length<=state.limit;
+    $('more').textContent='Weitere '+nice(Math.min(100,rows.length-state.limit))+' Angebote anzeigen';
+  }
+  for (const geo of ['eu','us']) $('toggle-'+geo).addEventListener('click',()=>{if(state[geo]&&!state[geo==='eu'?'us':'eu'])return;state[geo]=!state[geo];state.limit=100;render();});
+  $('max-vcpu').addEventListener('change', event=>{state.maxVcpu=Number(event.target.value);state.limit=100;render();});
+  $('more').addEventListener('click',()=>{state.limit+=100;render();});
+  $('export').addEventListener('click',()=>{
+    const escapeCell=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+    const lines=[csvColumns.join(','),...state.sorted.map(x=>csvColumns.map(k=>escapeCell(k==='per_unit_hour_usd'?score(x):x[k])).join(','))];
+    const url=URL.createObjectURL(new Blob([lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download='cloud-ci-ranking-'+(state.eu?'eu':'')+(state.us?'us':'')+'-max'+state.maxVcpu+'vcpu.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+  render();
+})();
+</script>
+</body>
+</html>

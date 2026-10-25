@@ -1,0 +1,90 @@
+provider,instance,arch,processor,model,geo,region,vcpu,ram,hour_usd,per_unit_hour_usd,source,evidence,asof,data_class,interruption
+GCP,c2d-highcpu-16,x86-64,,Spot,us,us-east5,16,32.0,0.054112,0.003382,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2d-standard-16,x86-64,,Spot,us,us-west8,16,64.0,0.060928,0.003808,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c6gd.2xlarge,ARM64,AWS Graviton2 Processor,Spot,us,us-east-2,8,16.0,0.0307,0.0038375,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,>20%
+GCP,c3d-highcpu-16,x86-64,,Spot,eu,europe-west9,16,32.0,0.062656,0.003916,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4a-highcpu-16,ARM64,Google Axion,Spot,us,us-west8,16,32.0,0.066368,0.004148,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n1-standard-16,x86-64,,Spot,us,us-west8,16,60.0,0.06846,0.00427875,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2-standard-16,x86-64,,Spot,us,us-west8,16,64.0,0.070144,0.004384,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c2d-standard-16,x86-64,,Spot,eu,europe-north1,16,64.0,0.071968,0.004498,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-standard-16,x86-64,,Spot,eu,europe-west9,16,64.0,0.075872,0.004742,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4a-standard-16,ARM64,Google Axion,Spot,us,us-west8,16,64.0,0.078656,0.004916,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c2-standard-16,x86-64,,Spot,eu,europe-north2,16,64.0,0.07888,0.00493,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,e2-standard-16,x86-64,,Spot,us,us-west4,16,64.0,0.079456,0.004966,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2d-highmem-16,x86-64,,Spot,us,us-west8,16,128.0,0.082176,0.005136,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n1-highmem-16,x86-64,,Spot,us,us-west8,16,104.0,0.085224,0.0053265,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-standard-16-lssd,x86-64,,Spot,eu,europe-west10,16,64.0,0.087399863,0.00546249,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c2d-highmem-16,x86-64,,Spot,us,us-east5,16,128.0,0.088288,0.005518,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4-highcpu-16,x86-64,,Spot,eu,europe-west1,16,32.0,0.088352,0.005522,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c8gd.4xlarge,ARM64,AWS Graviton4 Processor,Spot,eu,eu-north-1,16,32.0,0.089,0.0055625,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2d-highcpu-16,x86-64,,Spot,us,us-west8,16,16.0,0.044992,0.005624,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2-highmem-16,x86-64,,Spot,us,us-west8,16,128.0,0.094528,0.005908,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,m8g.2xlarge,ARM64,AWS Graviton4 Processor,Spot,eu,eu-south-2,8,32.0,0.04799,0.00599875,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,<5%
+AWS,c7a.2xlarge,x86-64,AMD EPYC 9R14 Processor,Spot,eu,eu-south-2,8,16.0,0.048444,0.0060555,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,5-10%
+GCP,c3d-standard-8-lssd,x86-64,,Spot,eu,europe-west10,8,32.0,0.048759863,0.00609498,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+OCI,VM.Standard.A4.Flex,ARM64,AmpereOne M,Spot,global,global list price,16,32,0.0984,0.00615,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+AWS,m8gd.4xlarge,ARM64,AWS Graviton4 Processor,Spot,eu,eu-north-1,16,64.0,0.10025,0.00626563,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c8a.2xlarge,x86-64,AMD EPYC 9R45 Processor,Spot,eu,eu-south-2,8,16.0,0.050868,0.0063585,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,<5%
+GCP,c4a-highmem-16,ARM64,Google Axion,Spot,us,us-west8,16,128.0,0.103232,0.006452,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2-highcpu-16,x86-64,,Spot,us,us-west8,16,16.0,0.051856,0.006482,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-highmem-16,x86-64,,Spot,us,us-south1,16,128.0,0.10416,0.00651,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4-standard-16,x86-64,,Spot,eu,europe-west1,16,64.0,0.104704,0.006544,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4a-standard-8-lssd,ARM64,Google Axion,Spot,us,us-west8,8,32.0,0.052889644,0.00661121,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4a-standard-16-lssd,ARM64,Google Axion,Spot,us,us-west8,16,64.0,0.105779288,0.00661121,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,e2-highmem-16,x86-64,,Spot,us,us-west4,16,128.0,0.107232,0.006702,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-highmem-16-lssd,x86-64,,Spot,eu,europe-west10,16,128.0,0.114279863,0.00714249,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,t2d-standard-16,x86-64,,Spot,eu,europe-southwest1,16,64.0,0.116768,0.007298,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4d-highcpu-16,x86-64,,Spot,eu,europe-west9,16,32.0,0.116992,0.007312,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,e2-highcpu-16,x86-64,,Spot,us,us-west4,16,16.0,0.058624,0.007328,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,m6i.4xlarge,x86-64,Intel Xeon 8375C (Ice Lake),Spot,us,us-east-2,16,64.0,0.121967,0.00762294,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,>20%
+OCI,VM.Standard.E4.Flex,x86-64,AMD EPYC,Spot,global,global list price,16,32,0.124,0.00775,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+GCP,c3d-highmem-8-lssd,x86-64,,Spot,eu,europe-west10,8,64.0,0.062199863,0.00777498,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3-standard-8-lssd,x86-64,,Spot,eu,europe-west6,8,32.0,0.063778137,0.00797227,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4-highcpu-16,x86-64,,Spot,eu,europe-west9,16,32.0,0.128032,0.008002,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c8i-flex.4xlarge,x86-64,Intel Xeon Scalable (Granite Rapids),Spot,us,us-east-2,16,32.0,0.1397,0.00873125,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,10-15%
+AWS,c7gd.2xlarge,ARM64,AWS Graviton3 Processor,Spot,us,us-east-2,8,16.0,0.0736,0.0092,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,<5%
+AWS,m6gd.2xlarge,ARM64,AWS Graviton2 Processor,Spot,us,us-east-2,8,32.0,0.073667,0.00920837,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,15-20%
+OCI,VM.Standard.E5.Flex,x86-64,AMD EPYC,Spot,global,global list price,16,32,0.152,0.0095,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+OCI,VM.Standard.E6.Flex,x86-64,AMD EPYC,Spot,global,global list price,16,32,0.152,0.0095,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+AWS,m6g.2xlarge,ARM64,AWS Graviton2 Processor,Spot,us,us-east-2,8,32.0,0.0775,0.0096875,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,>20%
+AWS,m7g.2xlarge,ARM64,AWS Graviton3 Processor,Spot,us,us-east-2,8,32.0,0.078133,0.00976662,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,>20%
+AWS,c4.4xlarge,x86-64,Intel Xeon E5-2666 v3 (Haswell),Spot,us,us-west-1,16,30.0,0.1522,0.01014667,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,5-10%
+OCI,VM.Standard.A2.Flex,ARM64,AmpereOne,On-Demand,global,global list price,16,32,0.176,0.011,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+OCI,VM.Standard.A4.Flex,ARM64,AmpereOne M,On-Demand,global,global list price,16,32,0.1968,0.0123,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+OCI,VM.Standard.E4.Flex,x86-64,AMD EPYC,On-Demand,global,global list price,16,32,0.248,0.0155,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+OCI,VM.Standard.E5.Flex,x86-64,AMD EPYC,On-Demand,global,global list price,16,32,0.304,0.019,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+OCI,VM.Standard.E6.Flex,x86-64,AMD EPYC,On-Demand,global,global list price,16,32,0.304,0.019,https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/,Oracle PAYG + modeled 50% preemptible,2026-10-25,snapshot,
+AWS,a1.2xlarge,ARM64,AWS Graviton Processor,On-Demand,us,us-east-1,8,16.0,0.204,0.0255,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,>20%
+GCP,n4a-highcpu-16,ARM64,Google Axion,On-Demand,us,us-central1,16,32.0,0.51968,0.03248,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,e2-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.53609136,0.03350571,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4d-highcpu-16,x86-64,,On-Demand,us,us-central1,16,32.0,0.57168,0.03573,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c7g.2xlarge,ARM64,AWS Graviton3 Processor,On-Demand,us,us-east-2,8,16.0,0.289,0.036125,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,>20%
+AWS,c6g.2xlarge,ARM64,AWS Graviton2 Processor,On-Demand,eu,eu-south-2,8,16.0,0.2918,0.036475,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,<5%
+GCP,c2d-highcpu-16,x86-64,,On-Demand,us,us-central1,16,32.0,0.599696,0.037481,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-highcpu-16,x86-64,,On-Demand,us,us-central1,16,32.0,0.599696,0.037481,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4a-highcpu-16,ARM64,Google Axion,On-Demand,us,us-central1,16,32.0,0.60608,0.03788,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4-highcpu-16,x86-64,,On-Demand,us,us-central1,16,32.0,0.61232,0.03827,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4a-standard-16,ARM64,Google Axion,On-Demand,us,us-central1,16,64.0,0.616,0.0385,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,t2a-standard-16,ARM64,Google Axion,On-Demand,us,us-central1,16,64.0,0.616,0.0385,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2d-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.675936,0.042246,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,t2d-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.675936,0.042246,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4d-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.6776,0.04235,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4d-highcpu-16,x86-64,,On-Demand,us,us-central1,16,30.0,0.635856449,0.04239043,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4-highcpu-16,x86-64,,On-Demand,us,us-central1,16,32.0,0.680416,0.042526,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,e2-highmem-16,x86-64,,On-Demand,us,us-central1,16,128.0,0.72319728,0.04519983,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.7256,0.04535,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c2d-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.726384,0.045399,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c5.2xlarge,x86-64,Intel Xeon Platinum 8124M,On-Demand,eu,eu-north-1,8,16.0,0.364,0.0455,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,10-15%
+GCP,c4a-standard-16,ARM64,Google Axion,On-Demand,eu,europe-north2,16,64.0,0.754304,0.047144,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4d-standard-16,x86-64,,On-Demand,us,us-central1,16,62.0,0.755963594,0.04724772,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n1-standard-16,x86-64,,On-Demand,us,us-central1,16,60.0,0.759996,0.04749975,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-standard-16,x86-64,,On-Demand,eu,europe-north2,16,64.0,0.7627032,0.04766895,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-standard-16-lssd,x86-64,,On-Demand,us,us-central1,16,64.0,0.76747989,0.04796749,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n2-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.776944,0.048559,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+AWS,c7gd.2xlarge,ARM64,AWS Graviton3 Processor,On-Demand,eu,eu-north-1,8,16.0,0.3931,0.0491375,https://instances.vantage.sh/instances.json,Vantage regional pricing,2026-10-25,snapshot,5-10%
+GCP,c4-standard-16,x86-64,,On-Demand,us,us-central1,16,60.0,0.79068,0.0494175,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,e2-highcpu-16,x86-64,,On-Demand,us,us-central1,16,16.0,0.39576192,0.04947024,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c3d-standard-8-lssd,x86-64,,On-Demand,us,us-central1,8,32.0,0.40428789,0.05053599,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,n4a-highmem-16,ARM64,Google Axion,On-Demand,us,us-central1,16,128.0,0.80864,0.05054,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c2-standard-16,x86-64,,On-Demand,us,us-central1,16,64.0,0.835232,0.052202,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
+GCP,c4d-standard-16-lssd,x86-64,,On-Demand,us,us-central1,16,62.0,0.838155375,0.05238471,https://instances.vantage.sh/gcp/instances.json,Vantage regional pricing,2026-10-25,snapshot,
