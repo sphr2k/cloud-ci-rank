@@ -19,6 +19,15 @@ const chunkSchema = z.object({
 });
 const commitSchema = z.object({ batchId: z.string().min(10).max(100) });
 const countries = new Set<string>(COUNTRIES);
+
+/** Before the additive D1 migration is applied, legacy reads and scheduled
+ * refresh must remain operational instead of failing with a generic 500. */
+async function hasRawSchema(db: D1Database): Promise<boolean> {
+  const row=await db.prepare(`SELECT COUNT(*) AS total FROM sqlite_master
+    WHERE type = 'table' AND name IN ('keeper_documents','keeper_batches','keeper_heads')`)
+    .first<{total:number}>();
+  return row?.total === 3;
+}
 const HEADER = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public,max-age=120,s-maxage=300' };
 
 async function payload(request: Request): Promise<unknown> {
@@ -44,6 +53,7 @@ function parseKeeperDoc(input: unknown, provider: string): typeof KeeperStored.i
 }
 
 export async function rawSources(db: D1Database): Promise<Response> {
+  if (!await hasRawSchema(db)) return Response.json({error:'Raw snapshot schema not provisioned',migrationRequired:true},{status:404});
   const store = snapshotStore(db);
   const heads = await store.listHeads();
   return Response.json(Object.fromEntries(heads.map(h => [h.namespace, {
@@ -52,6 +62,9 @@ export async function rawSources(db: D1Database): Promise<Response> {
 }
 
 export async function rawStatus(db: D1Database): Promise<Response> {
+  if (!await hasRawSchema(db)) return Response.json({
+    ready:false,migrationRequired:true,present:[],missing:[...KEEPER_VENDORS]
+  }, {headers:HEADER});
   const store = snapshotStore(db);
   const heads = await store.listHeads();
   return Response.json({
@@ -63,6 +76,9 @@ export async function rawStatus(db: D1Database): Promise<Response> {
 
 /** Authorized ingestion; no direct D1 SQL is required by the application. */
 export async function rawImport(db: D1Database, path: string, request: Request): Promise<Response> {
+  if (!await hasRawSchema(db)) return Response.json({
+    error:'Raw snapshot schema not provisioned',migrationRequired:true
+  }, {status:409});
   const store = snapshotStore(db);
   try {
     if (path === '/api/raw-import/begin') {
@@ -119,6 +135,7 @@ export async function rawImport(db: D1Database, path: string, request: Request):
 
 /** A strict, explicit read cutover: only serve raw snapshots if all providers are ready. */
 export async function rawPrices(db: D1Database, request: Request): Promise<Response | null> {
+  if (!await hasRawSchema(db)) return null;
   const store = snapshotStore(db);
   const heads = await store.listHeads();
   if (!KEEPER_VENDORS.every(v => heads.some(h => h.namespace === v))) return null;
