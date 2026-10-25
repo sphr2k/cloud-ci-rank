@@ -88,6 +88,39 @@ test('Keeper fetch stores eligible original server records, country and separate
   assert.deepEqual(offersFromKeeperRaw(result.AWS).length>0,true);
 });
 
+test('raw D1 schema absent: report migration-needed, keep legacy refresh/read alive', async () => {
+  const mf=new Miniflare({
+    modules:true,
+    script:readFileSync('dist/worker.mjs','utf8'),
+    compatibilityDate:'2026-08-06',
+    d1Databases:{DB:'cloud-ci-rank-no-raw-schema'},
+    bindings:{IMPORT_TOKEN:'secret',READ_KEEPER_SNAPSHOTS:'1'}
+  });
+  try {
+    const db=await mf.getD1Database('DB');
+    // Production has these tables from the original relational migration.
+    await db.prepare(`CREATE TABLE sources (
+      provider TEXT PRIMARY KEY,etag TEXT,content_digest TEXT,active_batch TEXT,
+      checked_at TEXT NOT NULL,changed_at TEXT NOT NULL,error TEXT
+    )`).run();
+    let res=await request(mf,'/api/health');
+    assert.equal(res.status,200);
+    res=await request(mf,'/api/raw/status');
+    assert.equal(res.status,200);
+    assert.deepEqual(await res.json(),{
+      ready:false,migrationRequired:true,present:[],missing:[...KEEPER_VENDORS]
+    });
+    res=await request(mf,'/api/raw/sources');
+    assert.equal(res.status,404); // importer falls back to legacy-only ingestion
+    assert.equal((await res.json() as {migrationRequired:boolean}).migrationRequired,true);
+    res=await post(mf,'/api/raw-import/begin',{provider:'AWS',digest:'a'.repeat(64),expectedRows:2});
+    assert.equal(res.status,409);
+    res=await request(mf,'/api/prices');
+    assert.equal(res.status,200);
+    assert.deepEqual((await res.json() as {offers:unknown[]}).offers,[]);
+  }finally {await mf.dispose();}
+});
+
 test('Worker native D1 raw import lifecycle, cutover, ETags and source preservation', async () => {
   const mf=new Miniflare({
     modules:true,
