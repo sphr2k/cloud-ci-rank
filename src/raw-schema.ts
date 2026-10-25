@@ -7,6 +7,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 const KeeperRawEntry = type({
   kind: "'raw'",
   country: 'string',
+  'awsRegion?': { regionId: 'string', name: 'string', country: 'string' },
   raw: {
     vendor_id: 'string', server_id: 'string', name: 'string',
     vcpus: 'number', memory_amount: 'number'

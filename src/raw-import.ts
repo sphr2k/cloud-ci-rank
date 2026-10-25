@@ -35,7 +35,9 @@ function parseKeeperDoc(input: unknown, provider: string): typeof KeeperStored.i
     if (parsed.offer.provider !== provider) throw new TypeError('Materialized offer provider does not match import namespace');
     return parsed;
   }
-  if (!countries.has(parsed.country) || keeperVendor(parsed.raw) !== provider) {
+  if (!countries.has(parsed.country) || keeperVendor(parsed.raw) !== provider ||
+      (provider === 'AWS' && (!parsed.awsRegion || parsed.awsRegion.country !== parsed.country)) ||
+      (provider !== 'AWS' && parsed.awsRegion)) {
     throw new TypeError('Keeper country/provider does not match import namespace');
   }
   return parsed;

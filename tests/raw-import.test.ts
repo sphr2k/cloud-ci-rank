@@ -13,6 +13,7 @@ function doc(provider:string, number = 0):KeeperRawDocument {
   return {
     country: number === 0 ? 'DE' : 'US',
     single: 500 + number,
+    ...(provider==='AWS'?{awsRegion:{regionId:number===0?'eu-central-1':'us-east-1',name:number===0?'Frankfurt':'N. Virginia',country:number===0?'DE':'US'}}:{}),
     raw: {
       vendor_id: vendorIds[provider],
       server_id: provider + '-' + number,
@@ -62,12 +63,17 @@ test('Keeper fetch stores eligible original server records, country and separate
     const url=new URL(String(resource));
     requested.push(url.toString());
     if(url.searchParams.get('benchmark_id')==='stress_ng:best1')return Response.json(singleRows);
+    if(url.pathname==='/table/region')return Response.json([
+      {vendor_id:'aws',status:'active',country_id:'DE',region_id:'eu-central-1',display_name:'Frankfurt'},
+      {vendor_id:'aws',status:'active',country_id:'US',region_id:'us-east-1',display_name:'N. Virginia'}
+    ]);
+    if(url.searchParams.has('regions'))return Response.json([doc('AWS',url.searchParams.get('regions')==='eu-central-1'?0:1).raw]);
     const country=url.searchParams.get('countries');
     if(country!=='DE' && country!=='US')return Response.json([]);
-    return Response.json(KEEPER_VENDORS.map(v=>doc(v,0).raw));
+    return Response.json(KEEPER_VENDORS.filter(v=>v!=='AWS').map(v=>doc(v,0).raw));
   };
   const result=await fetchKeeperRawAll(mock as typeof fetch);
-  assert.equal(requested.length,17);
+  assert.equal(requested.length,20);
   for(const provider of KEEPER_VENDORS){
     assert.equal(result[provider].length,2);
     assert.deepEqual(result[provider].map(d=>d.country).sort(),['DE','US']);
@@ -87,7 +93,7 @@ test('Worker native D1 raw import lifecycle, cutover, ETags and source preservat
   });
   try {
     const db=await mf.getD1Database('DB');
-    const migration = readFileSync('migrations/0005_keeper_snapshots.sql', 'utf8');
+    const migration = readFileSync('migrations/0006_keeper_snapshots.sql', 'utf8');
     for (const statement of migration.split('--> statement-breakpoint')) {
       const sql = statement.split('\n').filter(line => !line.trim().startsWith('--')).join('\n').trim();
       if (sql) await db.prepare(sql).run();
@@ -131,7 +137,7 @@ test('Worker native D1 raw import lifecycle, cutover, ETags and source preservat
       assert.equal((await res.json() as {duplicates:number}).duplicates,entries.length);
       if(vendor==='AWS') {
         res=await post(mf,'/api/raw-import/chunk',{batchId:begin.batchId,offset:0,
-          docs:[{...data[0],kind:'raw',country:'FI'}]});
+          docs:[{...data[0],kind:'raw',raw:{...data[0].raw,min_price_spot:0.99}}]});
         assert.equal(res.status,409);
         res=await post(mf,'/api/raw-import/chunk',{batchId:begin.batchId,offset:0,
           docs:[{...data[0],kind:'raw',raw:{...data[0].raw,vendor_id:'gcp'}}]});
