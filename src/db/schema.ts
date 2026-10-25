@@ -2,7 +2,7 @@ import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core
 import { createInsertSchema } from 'drizzle-orm/zod';
 
 export const sources = sqliteTable('sources', {
-  provider: text('provider', { enum: ['AWS', 'GCP', 'OCI'] }).primaryKey(),
+  provider: text('provider', { enum: ['AWS', 'GCP', 'AZURE', 'HCLOUD', 'OVH', 'UPCLOUD', 'VULTR', 'ALICLOUD'] }).primaryKey(),
   etag: text('etag'),
   contentDigest: text('content_digest'),
   activeBatch: text('active_batch'),
@@ -13,7 +13,7 @@ export const sources = sqliteTable('sources', {
 export const instances = sqliteTable('instances', {
   id: text('id').primaryKey(),
   batchId: text('batch_id').notNull(),
-  provider: text('provider', { enum: ['AWS', 'GCP', 'OCI'] }).notNull(),
+  provider: text('provider', { enum: ['AWS', 'GCP', 'AZURE', 'HCLOUD', 'OVH', 'UPCLOUD', 'VULTR', 'ALICLOUD'] }).notNull(),
   instance: text('instance').notNull(),
   family: text('family').notNull(),
   arch: text('arch').notNull(),
@@ -29,6 +29,8 @@ export const instances = sqliteTable('instances', {
   asof: text('asof').notNull(),
   dataClass: text('data_class').notNull(),
   interruption: text('interruption'),
+  benchAll: real('bench_all'),
+  benchSingle: real('bench_single'),
 }, (table) => [
   index('instances_active_batch_idx').on(table.batchId),
 ]);
@@ -38,7 +40,7 @@ export type SourceRow = typeof sources.$inferSelect;
 
 export const imports = sqliteTable('imports', {
   batchId: text('batch_id').primaryKey(),
-  provider: text('provider', { enum: ['AWS', 'GCP', 'OCI'] }).notNull(),
+  provider: text('provider', { enum: ['AWS', 'GCP', 'AZURE', 'HCLOUD', 'OVH', 'UPCLOUD', 'VULTR', 'ALICLOUD'] }).notNull(),
   expectedRows: integer('expected_rows').notNull(),
   etag: text('etag'),
   digest: text('digest').notNull(),

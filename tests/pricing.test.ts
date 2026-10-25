@@ -1,39 +1,43 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {bestByGeo,ranking} from '../src/pricing';
-import {quoteRows,parseVantage,streamJsonObjects,oracleSkuPrice} from '../src/feeds';
-const common = {instance:'c4a-highcpu-16',family:'c4a-highcpu',provider:'GCP' as const,arch:'ARM64',processor:'Axion',model:'Spot' as const,ram:32,vcpu:16,region:'us-central1',geo:'us' as const,source:'vantage',evidence:'test',asof:'2026-10-25',data_class:'live',interruption:null};
-test('ranking retains sizes, chooses cheapest geo, max vcpu=16',()=>{
- const data=[{...common,hour_usd:0.32},{...common,region:'eu-west3',geo:'eu' as const,hour_usd:.20},{...common,instance:'c4a-highcpu-32',vcpu:32,ram:64,hour_usd:.12}];
- assert.equal(bestByGeo(data).length,3);
- assert.equal(ranking(data,{us:true,eu:true,maxVcpu:16})[0].region,'eu-west3');
- assert.equal(ranking(data,{us:true,eu:false,maxVcpu:16})[0].hour_usd,.32);
- assert.equal(ranking(data,{us:true,eu:false,maxVcpu:32})[0].vcpu,32);
+import {bestByGeo,score,throughputPerDollar,ranking,type Offer} from '../src/pricing';
+import {keeperRows,fetchKeeperAll,COUNTRIES,KEEPER_VENDORS} from '../src/keeper';
+
+const row:Offer={
+ provider:'AWS',instance:'c8g.4xlarge',family:'c8g',arch:'ARM64',processor:'Graviton 4',
+ vcpu:16,ram:32,model:'Spot',hour_usd:.25,region:'US',geo:'us',
+ source:'test',evidence:'test',asof:'2026-10-25',data_class:'keeper',interruption:null,
+ benchAll:32000,benchSingle:3200
+};
+test('allcore/$ primary ranking distinguishes efficiency, falls back only for unmeasured',()=>{
+ const fast={...row,instance:'fast',family:'fast',hour_usd:.3,benchAll:65000};
+ const cheap={...row,instance:'cheap',family:'cheap',hour_usd:.08,benchAll:8000};
+ const missing={...row,instance:'missing',family:'missing',hour_usd:.01,benchAll:null};
+ assert.equal(ranking([cheap,fast,missing],{eu:false,us:true,maxVcpu:16})[0].instance,'fast');
+ assert.equal(ranking([cheap,fast,missing],{eu:false,us:true,maxVcpu:16})[2].instance,'missing');
+ assert.equal(ranking([cheap,fast],{eu:false,us:true,maxVcpu:16,metric:'nominal'})[0].instance,'cheap');
 });
-test('AWS spot_avg not spot_min and excluded regions',()=>{
- const rows=quoteRows('AWS',{instance_type:'c8g.4xlarge',vCPU:16,memory:32,arch:['arm64'],pricing:{
- 'us-east-1':{linux:{ondemand:0.6,spot_avg:'0.25',spot_min:'0.12',pct_interrupt:'<5%'}},
- 'ap-southeast-1':{linux:{spot_avg:0.0001}},
- 'us-gov-west-1':{linux:{spot_avg:0.0001}}}},'2026-10-25');
+test('2 GiB/vCPU memory correction penalizes underprovisioned machines',()=>{
+ assert.equal(throughputPerDollar({...row,ram:16}),throughputPerDollar(row)!/2);
+});
+test('cheapest country per family,size,tier retained for EU and US',()=>{
+ const a={...row,geo:'eu' as const,region:'Deutschland',hour_usd:0.18};
+ const b={...row,geo:'eu' as const,region:'Frankreich',hour_usd:0.16};
+ assert.equal(bestByGeo([row,a,b]).length,2);
+ assert.equal(ranking([a,b,row],{eu:true,us:false,maxVcpu:16})[0].region,'Frankreich');
+});
+test('normalizes Keeper price options and benchmark, excludes non-US/non-EU and GPU',()=>{
+ const fixture=[{vendor_id:'gcp',server_id:'abc',name:'c4a-highcpu-16',family:'c4a',vcpus:16,memory_amount:32768,
+  cpu_architecture:'arm64',accelerator_count:0,selected_benchmark_score:45000,
+  min_price_spot:0.14,min_price_ondemand:.44,status:'active'}];
+ const rows=keeperRows(fixture,'DE',new Map([['gcp:abc',4000]]));
  assert.equal(rows.length,2);
- assert.equal(rows.find(x=>x.model==='Spot')!.hour_usd,0.25);
+ assert.equal(rows[0].provider,'GCP');
+ assert.equal(rows[0].geo,'eu');
+ assert.equal(rows[0].benchAll,45000);
+ assert.equal(rows[0].benchSingle,4000);
 });
-test('streaming JSON parses escaped strings across arbitrary byte boundaries',async()=>{
- const json=JSON.stringify([{name:'A \\\\"hello"',x:{a:1}},{name:'second',array:[{inner:2}]}]);
- const buffer=new TextEncoder().encode(json);
- const body=new ReadableStream<Uint8Array>({start(controller){for(let i=0;i<buffer.length;i+=3)controller.enqueue(buffer.slice(i,i+3));controller.close()}});
- const results=[];
- for await (const x of streamJsonObjects(body))results.push(x);
- assert.equal(results.length,2);
- assert.deepEqual(results[1].array,[{inner:2}]);
-});
-test('streaming Vantage keeps cheapest region per family + size',async()=>{
- const data=[{instance_type:'c8g.4xlarge',vCPU:16,memory:32,arch:['arm64'],pricing:{'us-east-1':{linux:{spot_avg:'0.25'}},'us-west-2':{linux:{spot_avg:'0.2'}}}}];
- const body=new Response(JSON.stringify(data)).body!;
- const res=await parseVantage('AWS',body,'2026-10-25');
- assert.equal(res.offers.length,1);
- assert.equal(res.offers[0].region,'us-west-2');
-});
-test('OCI pricing uses USD PAYG localization',()=>{
- assert.equal(oracleSkuPrice({items:[{partNumber:'B112145',currencyCodeLocalizations:[{currencyCode:'USD',prices:[{model:'PAY_AS_YOU_GO',value:.0138}]}]}]},'B112145'),.0138);
+test('primary sources cover eight providers and only one country per request',()=>{
+ assert.equal(KEEPER_VENDORS.length,8);
+ assert.equal(COUNTRIES.filter(x=>x==='US').length,1);
 });

@@ -1,4 +1,4 @@
-import { HTML, APP, SNAPSHOT } from './assets.generated';
+import { HTML, APP } from './assets.generated';
 import type { D1Database } from '@cloudflare/workers-types';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, inArray, count } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import type { Offer, DataEnvelope } from './pricing';
 
 interface Env { DB: D1Database; IMPORT_TOKEN?: string }
 const HEADER={'content-type':'application/json; charset=utf-8','cache-control':'public,max-age=120,s-maxage=300'};
-const providerSchema=z.enum(['AWS','GCP','OCI']);
+const providerSchema=z.enum(['AWS','GCP','AZURE','HCLOUD','OVH','UPCLOUD','VULTR','ALICLOUD']);
 const beginSchema=z.object({
   provider:providerSchema,etag:z.string().nullable().default(null),
   digest:z.string().regex(/^[a-f0-9]{64}$/),expectedRows:z.number().int().min(1).max(10000)
@@ -17,7 +17,7 @@ const offerSchema=z.object({
   provider:providerSchema,instance:z.string(),family:z.string(),arch:z.string(),
   processor:z.string(),vcpu:z.number().int(),ram:z.number(),model:z.enum(['Spot','On-Demand']),
   hour_usd:z.number().positive(),region:z.string(),geo:z.enum(['eu','us','global']),
-  source:z.string(),evidence:z.string(),asof:z.string(),data_class:z.string(),interruption:z.string().nullable(),
+  source:z.string(),evidence:z.string(),asof:z.string(),data_class:z.string(),interruption:z.string().nullable(),benchAll:z.number().positive().nullable(),benchSingle:z.number().positive().nullable(),
 });
 const chunkSchema=z.object({batchId:z.string().uuid(),offset:z.number().int().nonnegative(),offers:z.array(offerSchema).min(1).max(20)});
 const commitSchema=z.object({batchId:z.string().uuid()});
@@ -44,7 +44,7 @@ async function chunk(env:Env,request:Request):Promise<Response>{
     id:data.batchId+':'+(data.offset+i),batchId:data.batchId,provider:x.provider,
     instance:x.instance,family:x.family,arch:x.arch,processor:x.processor,vcpu:x.vcpu,ram:x.ram,
     model:x.model,hourUsd:x.hour_usd,region:x.region,geo:x.geo,source:x.source,
-    evidence:x.evidence,asof:x.asof,dataClass:x.data_class,interruption:x.interruption,
+    evidence:x.evidence,asof:x.asof,dataClass:x.data_class,interruption:x.interruption,benchAll:x.benchAll,benchSingle:x.benchSingle,
   }));
   for(let i=0;i<rows.length;i+=5)await db.insert(instances).values(rows.slice(i,i+5)).onConflictDoNothing();
   return Response.json({status:'accepted',count:rows.length});
@@ -69,7 +69,7 @@ async function prices(env:Env,request:Request):Promise<Response>{
   const rows=batches.length?await db.select().from(instances).where(inArray(instances.batchId,batches)).all():[];
   const offers:Offer[]=rows.map(x=>({provider:x.provider,instance:x.instance,family:x.family,arch:x.arch,processor:x.processor,
     vcpu:x.vcpu,ram:x.ram,model:x.model,hour_usd:x.hourUsd,region:x.region,geo:x.geo,source:x.source,
-    evidence:x.evidence,asof:x.asof,data_class:x.dataClass,interruption:x.interruption}));
+    evidence:x.evidence,asof:x.asof,data_class:x.dataClass,interruption:x.interruption,benchAll:x.benchAll,benchSingle:x.benchSingle}));
   const data:DataEnvelope={updatedAt:statuses.map(x=>x.changedAt).sort().at(-1)||'',
     providers:Object.fromEntries(statuses.map(x=>[x.provider,{checkedAt:x.checkedAt,changedAt:x.changedAt,
       records:rows.filter(y=>y.provider===x.provider).length,...(x.error?{error:x.error}:{})}])),
@@ -103,7 +103,6 @@ export default {
     if(request.method!=='GET')return new Response('Method Not Allowed',{status:405});
     if(path==='/'||path==='/index.html')return new Response(HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=300'}});
     if(path==='/app.js')return new Response(APP,{headers:{'content-type':'text/javascript; charset=utf-8','cache-control':'public,max-age=300'}});
-    if(path==='/snapshot.json')return new Response(SNAPSHOT,{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public,max-age=3600'}});
     return new Response('Not Found',{status:404});
   }
 };

@@ -1,64 +1,53 @@
 import { createHash } from 'node:crypto';
-import { parseOracle, parseVantage, VANTAGE } from '../src/feeds';
+import { fetchKeeperAll, KEEPER_VENDORS } from '../src/keeper';
 import type { Offer } from '../src/pricing';
 
-const endpoint = process.env.CLOUD_CI_RANK_URL?.replace(/\/+$/, '');
-const token = process.env.CLOUD_CI_IMPORT_TOKEN;
-if (!endpoint || !token) throw new Error('CLOUD_CI_RANK_URL and CLOUD_CI_IMPORT_TOKEN required');
-const providers = ['AWS','GCP','OCI'] as const;
-
-async function get<T>(path:string): Promise<T> {
-  const res=await fetch(endpoint+path,{headers:{'accept':'application/json'}});
-  if(!res.ok)throw new Error('GET '+path+': HTTP '+res.status);
-  return res.json() as Promise<T>;
+const endpoint=process.env.CLOUD_CI_RANK_URL?.replace(/\/+$/,'');
+const token=process.env.CLOUD_CI_IMPORT_TOKEN;
+if(!endpoint||!token)throw new Error('CLOUD_CI_RANK_URL and CLOUD_CI_IMPORT_TOKEN required');
+async function get<T>(path:string):Promise<T>{
+ const res=await fetch(endpoint+path);
+ if(!res.ok)throw new Error('GET '+path+': HTTP '+res.status);
+ return res.json() as Promise<T>;
 }
-async function post<T>(path:string, data:unknown): Promise<T> {
-  let failure:unknown;
-  for(let retry=0;retry<3;retry++){
-    try{
-      const res=await fetch(endpoint+path,{method:'POST',headers:{
-        'content-type':'application/json','Authorization':'Bearer '+token},
-        body:JSON.stringify(data)});
-      if(!res.ok)throw new Error('POST '+path+': HTTP '+res.status+' '+(await res.text()).slice(0,350));
-      return res.json() as Promise<T>;
-    } catch(e) {failure=e;if(retry<2) await new Promise(r=>setTimeout(r,1000*(retry+1)));}
-  }
-  throw failure;
+async function post<T>(path:string,data:unknown):Promise<T>{
+ for(let attempt=0;attempt<3;attempt++){
+  const res=await fetch(endpoint+path,{method:'POST',
+   headers:{'content-type':'application/json','authorization':'Bearer '+token},
+   body:JSON.stringify(data)});
+  if(res.ok)return res.json() as Promise<T>;
+  const detail=(await res.text()).slice(0,400);
+  if(res.status>=400&&res.status<500&&res.status!==429)throw new Error('POST '+path+': HTTP '+res.status+' '+detail);
+  if(attempt===2)throw new Error('POST '+path+': HTTP '+res.status+' '+detail);
+  await new Promise(r=>setTimeout(r,1500*(attempt+1)));
+ }
+ throw new Error('unreachable');
 }
-function digestOffers(offers:Offer[]):string {
-  const normalized=offers.map(x=>[
-    x.instance,x.family,x.arch,x.processor,x.vcpu,x.ram,x.model,
-    x.hour_usd,x.region,x.geo,x.interruption
-  ]).sort((a,b)=>String(a).localeCompare(String(b)));
-  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+export function digestOffers(offers:Offer[]):string{
+ const normalized=offers.map(x=>[
+  x.instance,x.family,x.arch,x.processor,x.vcpu,x.ram,x.model,
+  x.hour_usd,x.region,x.geo,x.benchAll,x.benchSingle
+ ]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+ return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
-const state=await get<Record<string,{etag:string|null,digest:string|null}>>('/api/sources');
-for(const provider of providers) {
-  const since=performance.now();
-  let offers:Offer[],etag:string|null=null;
-  if(provider==='OCI')offers=await parseOracle(fetch,new Date().toISOString().slice(0,10));
-  else {
-    const headers=new Headers();
-    if(state[provider]?.etag) headers.set('If-None-Match',state[provider].etag);
-    const response=await fetch(VANTAGE[provider],{headers});
-    if(response.status===304){console.log(provider,'HTTP 304 not modified');continue;}
-    if(!response.ok||!response.body)throw new Error(provider+' upstream HTTP '+response.status);
-    etag=response.headers.get('ETag');
-    offers=(await parseVantage(provider,response.body,new Date().toISOString().slice(0,10))).offers;
-  }
-  const digest=digestOffers(offers);
-  if(state[provider]?.digest===digest){
-    console.log(provider,'normalized prices unchanged, rows:',offers.length);continue;
-  }
+async function main(){
+ const old=await get<Record<string,{digest:string|null}>>('/api/sources');
+ const grouped=await fetchKeeperAll();
+ for(const vendor of KEEPER_VENDORS){
+  const offers=grouped[vendor],digest=digestOffers(offers);
+  if(old[vendor]?.digest===digest){console.log(vendor,'unchanged, no D1 writes');continue;}
+  const start=Date.now();
   const begin=await post<{status:'unchanged'|'upload';batchId?:string}>('/api/import/begin',{
-    provider,digest,etag,expectedRows:offers.length
+   provider:vendor,digest,etag:null,expectedRows:offers.length
   });
-  if(begin.status==='unchanged'){console.log(provider,'already uploaded');continue;}
-  if(!begin.batchId)throw new Error(provider+' missing upload ID');
-  for(let offset=0;offset<offers.length;offset+=10) {
-    await post('/api/import/chunk',{batchId:begin.batchId,offset,offers:offers.slice(offset,offset+10)});
+  if(begin.status==='unchanged'){console.log(vendor,'already published');continue;}
+  if(!begin.batchId)throw new Error(vendor+' missing batch');
+  for(let offset=0;offset<offers.length;offset+=10){
+   await post('/api/import/chunk',{batchId:begin.batchId,offset,offers:offers.slice(offset,offset+10)});
   }
-  const done=await post<{status:string,count:number}>('/api/import/commit',{batchId:begin.batchId});
-  if(done.status!=='committed'||done.count!==offers.length)throw new Error(provider+' incomplete commit');
-  console.log(provider,'committed',done.count,'normalized offers in',Math.round(performance.now()-since),'ms');
+  const result=await post<{status:string;count:number}>('/api/import/commit',{batchId:begin.batchId});
+  if(result.status!=='committed'||result.count!==offers.length)throw new Error(vendor+' commit failed');
+  console.log(vendor,'published',result.count,'rows; time',Date.now()-start,'ms');
+ }
 }
+await main();

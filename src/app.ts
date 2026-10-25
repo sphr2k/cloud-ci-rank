@@ -1,142 +1,128 @@
-import { ranking, score, type DataEnvelope, type Offer } from './pricing';
-
-const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
-  const item = document.getElementById(id);
-  if (!item) throw new Error('Missing element #' + id);
-  return item as T;
+import { ranking, score, throughputPerDollar, type DataEnvelope, type Offer, type RankingMetric } from './pricing';
+const $=<T extends HTMLElement=HTMLElement>(id:string):T=>{
+ const element=document.getElementById(id);
+ if(!element)throw new Error('Missing element #'+id);
+ return element as T;
 };
-const state = {eu:true,us:true,maxVcpu:16,limit:100,sorted:[] as Offer[]};
-let offers:Offer[] = [];
-const format = (v:number, places=5) => '$' + v.toFixed(places);
-const nice = (v:number) => v.toLocaleString('de-DE');
-const columns = ['provider','instance','processor','arch','model','region','geo','vcpu','ram','hour_usd','per_unit_hour_usd','source','evidence','asof','data_class','interruption'] as const;
-const add = (parent:HTMLElement, tag:string, value?:string|number, cls?:string):HTMLElement => {
-  const item=document.createElement(tag);
-  if (value !== undefined) item.textContent=String(value);
-  if (cls) item.className=cls;
-  parent.append(item);
-  return item;
+const state:{eu:boolean;us:boolean;maxVcpu:number;metric:RankingMetric;limit:number;sorted:Offer[]}={
+ eu:true,us:true,maxVcpu:16,metric:'allcore',limit:100,sorted:[]
 };
-
-function createRow(x:Offer,i:number,bestScore:number):HTMLTableRowElement {
-  const tr=document.createElement('tr');
-  tr.id='offer-'+i;
-  add(tr,'td',String(i+1).padStart(2,'0'),'num rank');
-  const pv=add(tr,'td');add(pv,'span',x.provider,'provider '+x.provider.toLowerCase());
-  const inst=add(tr,'td',undefined,'instance');
-  const a=add(inst,'a',x.instance) as HTMLAnchorElement;
-  if (x.source.startsWith('https://')) {a.href=x.source;a.target='_blank';a.rel='noopener noreferrer';}
-  add(inst,'div',x.processor || 'CPU nicht spezifiziert','sub');
-  add(tr,'td',x.arch,'arch');
-  const model=add(tr,'td');
-  add(model,'span',x.provider==='OCI' && x.model==='Spot'?'Preemptible −50%':x.model,'pill '+(x.model==='Spot'?'spot':'ondemand'));
-  add(tr,'td',x.vcpu,'num');add(tr,'td',x.ram,'num');
-  const cost=add(tr,'td',undefined,'num');
-  add(cost,'div',format(score(x)),'good');
-  const bar=add(cost,'span',undefined,'bar');
-  const part=add(bar,'i') as HTMLElement;
-  part.style.width=Math.max(2,Math.min(100,100*bestScore/score(x))).toFixed(1)+'%';
-  add(tr,'td',format(x.hour_usd,4),'num');
-  add(tr,'td',format(x.hour_usd/60,6),'num');
-  const place=add(tr,'td');
-  add(place,'div',x.geo==='global'?'Globaler Listenpreis':x.region,'region-label '+(x.geo==='global'?'global':''));
-  if(x.geo==='global')add(place,'div','Regionale Verfügbarkeit ungeprüft','sub');
-  else if(x.interruption)add(place,'div','Spot-Unterbrechungen: '+x.interruption,'sub');
-  return tr;
+let offers:Offer[]=[];
+const money=(n:number,p=5)=>'$'+n.toFixed(p);
+const nice=(n:number)=>n.toLocaleString('de-DE');
+const fmtBench=(n:number|null)=>n===null?'–':nice(Math.round(n));
+const metricValue=(x:Offer)=>state.metric==='allcore'?throughputPerDollar(x):score(x);
+const cols=['provider','instance','processor','arch','model','region','geo','vcpu','ram','hour_usd','per_unit_hour_usd','bench_all','bench_single','allcore_per_usd','source','evidence','asof','data_class'] as const;
+const add=(parent:HTMLElement,tag:string,value?:string|number,cls?:string):HTMLElement=>{
+ const element=document.createElement(tag);
+ if(value!==undefined)element.textContent=String(value);
+ if(cls)element.className=cls;
+ parent.append(element);return element;
+};
+function rowElement(x:Offer,i:number,best:number):HTMLTableRowElement{
+ const tr=document.createElement('tr');tr.id='offer-'+i;
+ add(tr,'td',String(i+1).padStart(2,'0'),'num rank');
+ const cell=add(tr,'td');add(cell,'span',x.provider,'provider '+x.provider.toLowerCase());
+ const inst=add(tr,'td',undefined,'instance');
+ const a=add(inst,'a',x.instance) as HTMLAnchorElement;
+ a.href=x.source;a.target='_blank';a.rel='noopener noreferrer';
+ add(inst,'div',x.processor||'Unbekannter Prozessor','sub');
+ add(tr,'td',x.arch,'arch');
+ const tier=add(tr,'td');add(tier,'span',x.model,'pill '+(x.model==='Spot'?'spot':'ondemand'));
+ add(tr,'td',x.vcpu,'num');add(tr,'td',x.ram,'num');
+ const metric=add(tr,'td',undefined,'num'),value=metricValue(x);
+ add(metric,'div',value===null?'Keine Messung':state.metric==='allcore'?nice(Math.round(value)):money(value),'good');
+ if(value!==null){
+  const bar=add(metric,'span',undefined,'bar'),part=add(bar,'i');
+  part.style.width=(state.metric==='allcore'?Math.max(2,100*value/best):Math.max(2,100*best/value)).toFixed(1)+'%';
+ }
+ add(tr,'td',money(score(x)),'num');
+ add(tr,'td',fmtBench(x.benchAll),'num');
+ add(tr,'td',fmtBench(x.benchSingle),'num');
+ add(tr,'td',money(x.hour_usd,4),'num');
+ const place=add(tr,'td');add(place,'div',x.region,'region-label');
+ add(place,'div','Länder-Minimum; genaue Zone ungeprüft','sub');
+ return tr;
 }
-function renderLeaders(rows:Offer[]):void {
-  const frag=document.createDocumentFragment();
-  for (const provider of ['AWS','GCP','OCI']) {
-    const i=rows.findIndex(row=>row.provider===provider);
-    if(i<0)continue;
-    const x=rows[i];
-    const card=document.createElement('button');
-    card.type='button';card.className='leader';
-    const head=add(card,'div',undefined,'leader-head');
-    add(head,'span',provider,'provider '+provider.toLowerCase());
-    add(head,'span','Rang '+(i+1),'leader-rank');
-    const cost=add(card,'div',undefined,'leader-price');
-    add(cost,'span',format(score(x)));
-    add(cost,'small',' / Einheit · h');
-    add(card,'div',x.instance+' · '+x.arch,'leader-vm');
-    const method=x.provider==='OCI' && x.model==='Spot'?'Preemptible −50% (berechnet)':x.model;
-    add(card,'div',method+' · '+x.vcpu+' vCPU / '+x.ram+' GiB','leader-note');
-    add(card,'div',x.geo==='global'?'Globaler OCI-Listenpreis · Verfügbarkeit ungeprüft':x.region,'leader-region');
-    card.setAttribute('aria-label',provider+' Rang '+(i+1)+' im Ranking anzeigen');
-    card.addEventListener('click',()=>{
-      if(state.limit<i+1){state.limit=Math.ceil((i+1)/100)*100;render();}
-      document.getElementById('offer-'+i)?.scrollIntoView({behavior:'smooth',block:'center'});
-    });
-    frag.append(card);
-  }
-  $('provider-leaders').replaceChildren(frag);
-}
-function render():void {
-  $('toggle-eu').setAttribute('aria-pressed',String(state.eu));
-  $('toggle-us').setAttribute('aria-pressed',String(state.us));
-  $<HTMLSelectElement>('max-vcpu').value=String(state.maxVcpu);
-  $('scope-text').textContent=state.eu&&state.us?'Europa + USA':state.eu?'Nur Europa':'Nur USA';
-  state.sorted=ranking(offers,state);
-  const rows=state.sorted;
-  $('best').textContent=rows.length?format(score(rows[0])):'–';
-  $('best-name').textContent=rows.length?rows[0].provider+' · '+rows[0].instance+' · '+(rows[0].geo==='global'?'global':rows[0].region):'Kein Angebot';
-  $('count').textContent=nice(rows.length);
-  $('count-foot').textContent=[...new Set(rows.map(x=>x.provider))].join(' · ');
-  $('spot-count').textContent=nice(rows.filter(x=>x.model==='Spot').length);
-  $('rank-count').textContent='· '+nice(rows.length)+' Einträge';
-  renderLeaders(rows);
-  const frag=document.createDocumentFragment();
-  rows.slice(0,state.limit).forEach((x,i)=>frag.appendChild(createRow(x,i,score(rows[0]))));
-  $('results').replaceChildren(frag);
-  $<HTMLButtonElement>('more').hidden=rows.length<=state.limit;
-  $('more').textContent='Weitere '+nice(Math.min(100,rows.length-state.limit))+' Angebote anzeigen';
-}
-for (const geo of ['eu','us'] as const) {
-  $('toggle-'+geo).addEventListener('click',()=>{
-    if(state[geo]&&!state[geo==='eu'?'us':'eu'])return;
-    state[geo]=!state[geo];state.limit=100;render();
+function renderLeaders(rows:Offer[]){
+ const fragment=document.createDocumentFragment();
+ for(const provider of ['AWS','GCP','AZURE','HCLOUD','OVH','UPCLOUD','VULTR','ALICLOUD']){
+  const index=rows.findIndex(x=>x.provider===provider);
+  if(index<0)continue;
+  const x=rows[index],card=document.createElement('button');card.type='button';card.className='leader';
+  const head=add(card,'div',undefined,'leader-head');
+  add(head,'span',provider,'provider '+provider.toLowerCase());
+  add(head,'span','Rang '+(index+1),'leader-rank');
+  const price=add(card,'div',undefined,'leader-price'),v=metricValue(x);
+  add(price,'span',v===null?'–':state.metric==='allcore'?nice(Math.round(v)):money(v));
+  add(price,'small',state.metric==='allcore'?' Ops/s pro USD/h':' USD/Einheit·h');
+  add(card,'div',x.instance+' · '+x.arch,'leader-vm');
+  add(card,'div',x.model+' · '+x.vcpu+' vCPU / '+nice(Math.round(x.ram))+' GiB','leader-note');
+  add(card,'div',x.region,'leader-region');
+  card.addEventListener('click',()=>{
+   if(state.limit<index+1){state.limit=Math.ceil((index+1)/100)*100;render();}
+   document.getElementById('offer-'+index)?.scrollIntoView({behavior:'smooth',block:'center'});
   });
+  fragment.append(card);
+ }
+ $('provider-leaders').replaceChildren(fragment);
+}
+function render(){
+ $('toggle-eu').setAttribute('aria-pressed',String(state.eu));
+ $('toggle-us').setAttribute('aria-pressed',String(state.us));
+ $<HTMLSelectElement>('max-vcpu').value=String(state.maxVcpu);
+ $<HTMLSelectElement>('ranking-metric').value=state.metric;
+ $('scope-text').textContent=state.eu&&state.us?'Europa + USA':state.eu?'Nur Europa':'Nur USA';
+ state.sorted=ranking(offers,state);
+ const rows=state.sorted,first=rows[0],value=first?metricValue(first):null;
+ $('best').textContent=value===null?'–':state.metric==='allcore'?nice(Math.round(value)):money(value);
+ $('best-name').textContent=first?first.provider+' · '+first.instance+' · '+first.region:'Keine Daten';
+ $('count').textContent=nice(rows.length);
+ $('count-foot').textContent=[...new Set(rows.map(x=>x.provider))].join(' · ');
+ $('spot-count').textContent=nice(rows.filter(x=>x.model==='Spot').length);
+ $('rank-count').textContent='· '+nice(rows.length)+' Einträge';
+ renderLeaders(rows);
+ const fragment=document.createDocumentFragment(),base=first?(metricValue(first)??1):1;
+ rows.slice(0,state.limit).forEach((x,i)=>fragment.appendChild(rowElement(x,i,base)));
+ $('results').replaceChildren(fragment);
+ $<HTMLButtonElement>('more').hidden=rows.length<=state.limit;
+ $('more').textContent='Weitere '+nice(Math.min(100,rows.length-state.limit))+' Angebote anzeigen';
+}
+for(const geo of ['eu','us'] as const){
+ $('toggle-'+geo).addEventListener('click',()=>{
+  if(state[geo]&&!state[geo==='eu'?'us':'eu'])return;
+  state[geo]=!state[geo];state.limit=100;render();
+ });
 }
 $<HTMLSelectElement>('max-vcpu').addEventListener('change',event=>{
-  state.maxVcpu=Number((event.target as HTMLSelectElement).value);state.limit=100;render();
+ state.maxVcpu=Number((event.target as HTMLSelectElement).value);
+ state.limit=100;render();
+});
+$<HTMLSelectElement>('ranking-metric').addEventListener('change',event=>{
+ state.metric=(event.target as HTMLSelectElement).value as RankingMetric;
+ state.limit=100;render();
 });
 $('more').addEventListener('click',()=>{state.limit+=100;render();});
 $('export').addEventListener('click',()=>{
-  const escapeCell=(v:unknown)=>'"'+String(v??'').replaceAll('"','""')+'"';
-  const lines=[columns.join(','),...state.sorted.map(x=>columns.map(k=>escapeCell(k==='per_unit_hour_usd'?score(x):x[k as keyof Offer])).join(','))];
-  const url=URL.createObjectURL(new Blob([lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
-  const a=document.createElement('a');a.href=url;
-  a.download='cloud-ci-ranking-'+(state.eu?'eu':'')+(state.us?'us':'')+'-max'+state.maxVcpu+'vcpu.csv';
-  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ const quote=(v:unknown)=>'"'+String(v??'').replaceAll('"','""')+'"';
+ const csv=[cols.join(','),...state.sorted.map(x=>cols.map(k=>quote(
+  k==='per_unit_hour_usd'?score(x):k==='bench_all'?x.benchAll:k==='bench_single'?x.benchSingle:
+  k==='allcore_per_usd'?throughputPerDollar(x):x[k as keyof Offer]
+ )).join(','))];
+ const url=URL.createObjectURL(new Blob([csv.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+ const link=document.createElement('a');link.href=url;link.download='cloud-ci-ranking.csv';
+ document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
-function decodeSnapshot(data:{fetched:string,quotes:Array<[string,string,string,string,string,number,number,string,number,string,string,string]>}):Offer[]{
- return data.quotes.map(([provider,instance,family,arch,processor,vcpu,ram,model,hour_usd,region,geo,interruption])=>({
-  provider:provider as Offer['provider'],instance,family,arch,processor,vcpu,ram,model:model as Offer['model'],
-  hour_usd,region,geo:geo as Offer['geo'],source:'https://instances.vantage.sh/',evidence:'Offline API-Snapshot',asof:data.fetched.slice(0,10),data_class:'snapshot',interruption:interruption||null
- }));
-}
 async function main(){
-  try {
-    const response=await fetch('/api/prices',{cache:'no-store'});
-    if(!response.ok)throw new Error('API HTTP '+response.status);
-    const data=await response.json() as DataEnvelope;
-    if(data.offers.length) {
-      offers=data.offers;
-      $('data-warning').textContent='D1 Live-Daten, letzter Preisimport: '+(data.updatedAt||'unbekannt')+(Object.values(data.providers).some(p=>p?.error)?' · Einige Quellen haben Importfehler':'');
-    } else {
-      throw new Error('Noch keine D1-Preisdaten importiert');
-    }
-  } catch(err) {
-    try {
-      const response=await fetch('/snapshot.json');
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      const snapshot=await response.json();
-      offers=decodeSnapshot(snapshot);
-      $('data-warning').textContent='Offline-Fallback-Snapshot '+snapshot.fetched+' · '+String(err)+' · Für aktuelle Preise den Cron-Import initialisieren.';
-    } catch(error) {
-      $('data-warning').textContent='Preisdaten nicht verfügbar: '+String(error);
-    }
-  }
-  render();
+ try{
+  const response=await fetch('/api/prices',{cache:'no-store'});
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  const result=await response.json() as DataEnvelope;
+  offers=result.offers.filter(x=>x.data_class==='keeper'&&['AWS','GCP','AZURE','HCLOUD','OVH','UPCLOUD','VULTR','ALICLOUD'].includes(x.provider));
+  $('data-warning').textContent=offers.length?'Keeper-Import vom '+result.updatedAt+'; Benchmarks stress_ng:bestn/best1.':'Noch keine Keeper-Daten importiert.';
+ }catch(e){
+  $('data-warning').textContent='Preisdaten nicht verfügbar: '+String(e);
+ }
+ render();
 }
 void main();

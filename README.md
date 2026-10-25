@@ -1,19 +1,33 @@
-# Cloud CI Price Leaderboard
+# Cloud CI Rank
 
-Minimal **TypeScript SPA + Cloudflare Worker + D1** for comparing AWS/GCP/OCI VM prices per `1 advertised vCPU + 2 GiB RAM` hour. [Live dashboard](https://cloud-ci-rank.janwer.workers.dev/).
+[**Live application**](https://cloud-ci-rank.janwer.workers.dev/) · [Spare Cores Keeper API](https://keeper.sparecores.net/docs)
 
-Europe and USA are enabled by default (Asia excluded), max vCPUs defaults to **16**. Rankings include x86-64, ARM64, Spot and On-Demand, choose the cheapest region per instance family and size, and display OCI A4 Preemptible with a clearly marked modeled 50% discount. The score measures **capacity price, not CPU performance**.
+A compact TypeScript SPA + Cloudflare Worker + D1 leaderboard for inexpensive, powerful CI workers. **Spare Cores is the sole data source.** No Vantage, Oracle pricing API, Python, Pyodide, or client-side tokens.
 
-## Architecture
+## Decision metric
 
-- **Public Worker** (`src/worker.ts`): serves HTML/SPA and `/api/prices` from Cloudflare D1. On Workers Free there is a 10ms CPU cap, so it does **not** parse the 319MB upstream AWS JSON.
-- **GitHub Actions** (`.github/workflows/prices.yml`): runs TypeScript importer every six hours; can also be triggered manually. It streams Vantage AWS/GCP feeds (`src/feeds.ts`) and fetches Oracle PAYG SKUs.
-- **Change detection**: AWS sends `If-None-Match` using the stored ETag; GCP lacks an ETag, so the small (~6MB) feed is downloaded and the normalized offers hashed. OCI SKU responses are likewise normalized and hashed. If the content digest is unchanged, **no D1 offer rows are rewritten**.
-- **Drizzle + Zod**: `src/db/schema.ts` is the source of truth. Generated `Instance` Zod schema validates normalized offers before D1 insertion. Migrations in `migrations/` are generated from the Drizzle schema (`drizzle/` retains generator snapshots).
-- **Atomic publication**: uploader stages batches of 10 offers, in D1 inserts of 5 rows (SQLite bound-variable limit), then commits only when the full expected row count is present. Until commit, readers see the previous complete snapshot.
-- **Snapshot**: `data/region_snapshot.json` is an explicitly dated, reduced fallback for uninitialized D1. It is **not** treated as current live prices.
+**Default: measured multi-core compute performance per dollar** from `stress_ng:bestn` (maximum multi-core div16 ops/s). Compare at the full VM level, not per virtual thread:
 
-### Running
+```text
+memory_factor = min(1, memory_GiB / (2 * vCPUs))
+score = max_multicore_ops_per_second * memory_factor / VM_hourly_price_USD
+```
+
+A missing benchmark is **not assumed to be zero**; unmeasured candidates rank after measured ones. The score rewards throughput for independent parallel Go/Bun CI jobs. It is synthetic CPU throughput, **not** measured compilation time or guaranteed performance under shared-core contention.
+
+`stress_ng:best1` provides the single-core ops/s alongside each result to identify potential serial-stage bottlenecks. We deliberately **do not fabricate a weighted composite**; benchmark real builds to calibrate a mix if necessary. The ranking selector can switch to **nominal 1 vCPU + 2 GiB RAM cost**, where `units = min(vCPUs, RAM_GiB / 2)` and score is USD/h divided by units.
+
+## Data and limits
+
+- Providers: AWS, GCP, Azure, Hetzner Cloud, OVH, UpCloud, Vultr, Alibaba Cloud. OCI is **not supported by Keeper and deliberately excluded**.
+- Europe and USA only, max. 16 vCPU by default (8–64 selectable), x86/ARM, Spot/On-Demand.
+- [Keeper `/servers`](https://keeper.sparecores.net/docs): 1 request for global single-core results, 1 per country for combined provider-specific prices and multi-core scores. Europe has 15 supported country codes plus US. ~17 requests × 3 credits = 51 credits per refresh, below Keeper's 300 credits/min default. In response to 429/503, retries honor `Retry-After` with bounded backoff.
+- Only **country-minimum** hourly prices are known from this endpoint, not the exact AZ and not actual purchasable Spot capacity. EU/US markets must not be conflated. Country availability and latency still require verification before deploying runners.
+- Keeper source records are public, under **CC BY-SA 4.0**. Data attribution: [Spare Cores](https://sparecores.com/). API use is subject to [terms/fair use](https://sparecores.com/legal/terms-of-service).
+- GitHub Actions refreshes every 6 hours via the same TypeScript parser (`src/keeper.ts`); Cloudflare Workers Free does no expensive upstream parsing. No API key required. Each provider's normalized price and benchmark records are hashed, and unchanged records cause **no D1 offers writes**.
+- D1 is deliberately retained as the public caching/serving layer. The Worker uses **Drizzle ORM + Drizzle-generated Zod schemas** (`src/db/schema.ts`), with atomic version switch after validating all uploaded rows. Data reduction preserves winning candidates across all six max-vCPU choices and both ranking metrics.
+
+## Develop
 
 ```sh
 npm ci
@@ -22,19 +36,8 @@ npm test
 npm run dev
 ```
 
-The Cloudflare D1 database is `cloud-ci-rank` (ID configured in `wrangler.jsonc`). The live worker is `cloud-ci-rank.janwer.workers.dev`.
+`wrangler.jsonc` binds D1 `cloud-ci-rank`, with migration SQL under `migrations/` and Drizzle metadata under `drizzle/`. The public endpoint is `/api/prices`; internal import endpoints require `IMPORT_TOKEN`, shared with the GitHub repository `CLOUD_CI_IMPORT_TOKEN` secret. `CLOUD_CI_RANK_URL` is the repository variable. Trigger [`Refresh cloud prices`](https://github.com/sphr2k/cloud-ci-rank/actions/workflows/prices.yml) to pull prices and publish into D1.
 
-### Refresh
+## Limitations
 
-GitHub Actions uses repository variable `CLOUD_CI_RANK_URL` and secret `CLOUD_CI_IMPORT_TOKEN`. The same secret is a Worker `IMPORT_TOKEN` secret binding. To run manually:
-
-```sh
-CLOUD_CI_RANK_URL=https://cloud-ci-rank.janwer.workers.dev \
-CLOUD_CI_IMPORT_TOKEN=... npm run prices:refresh
-```
-
-`POST /api/import/begin`, `/api/import/chunk`, `/api/import/commit` require `Authorization: Bearer <IMPORT_TOKEN>`; the public API never exposes the token. `GET /api/sources` exposes only the stored source ETag, normalized digest, and timestamps. D1 state is per-provider and independent across refresh failures.
-
-### Limitations
-
-AWS Vantage Linux Spot is a 7-day average, GCP Spot is published regional pricing; neither confirms available Spot capacity. OCI A4/E4/E5/E6 Preemptible is modeled at 50% off public CPU + RAM PAYG SKUs and **does not confirm availability in a selected region**. OCI A1 is intentionally omitted; A2 has no modeled Preemptible. GPU, shared-CPU, bare metal, burstable AWS and non-EU/non-US regions are excluded from the discovery input. Cloud compute/VM-start cost, disk, egress, quotas, CPU-generation benchmarking, and actual build speed are not included in the score.
+The results do not model boot time, cache warmup, total Go/Bun build walltime, EBS/Hyperdisk/D1 charges, egress, quota, spot reclamation or benchmark variance. They are for shortlisting hardware, not an empirical CI buildtime prediction.
